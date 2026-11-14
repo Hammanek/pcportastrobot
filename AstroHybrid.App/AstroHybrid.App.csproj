@@ -112,6 +112,7 @@
     <Compile Include="Services\LauncherService.cs" />
     <Compile Include="Services\SelfUnwrapper.cs" />
     <Compile Include="Services\GameSetup.cs" />
+    <Compile Include="Services\RumbleSetting.cs" />
     <Compile Include="ViewModels\ViewModelBase.cs" />
     <Compile Include="ViewModels\RelayCommand.cs" />
     <Compile Include="Converters.cs" />

@@ -20,7 +20,10 @@ rem hybrid never opened Kyty's caches and compiled shaders during play (100-117 
 rem late compiles and no frame over 80 ms. ASTROHYBRID_SHADER_CACHE=0 turns it off.
 if not defined ASTROHYBRID_CACHE_TITLE_ID if not "%ASTROHYBRID_SHADER_CACHE%"=="0" set ASTROHYBRID_CACHE_TITLE_ID=PPSA21567
 if exist "%ROOT%Build\RunHybrid\u59-preset.cmd" call "%ROOT%Build\RunHybrid\u59-preset.cmd"
-rem ASTROHYBRID_EXE=AstroBot-NonRT.exe runs the game with the Kyty launcher's non-RT patch.
+rem Prefer the soft-assert NonRT build for the command-buffer overflow path (issue #25).
+rem Callers can still override ASTROHYBRID_EXE explicitly; older runtimes fall back safely.
+if not defined ASTROHYBRID_EXE if exist "%ROOT%Build\RunHybrid\AstroBot-NonRT-SoftAssert.exe" set ASTROHYBRID_EXE=AstroBot-NonRT-SoftAssert.exe
+if not defined ASTROHYBRID_EXE if exist "%ROOT%Build\RunHybrid\AstroBot-NonRT.exe" set ASTROHYBRID_EXE=AstroBot-NonRT.exe
 if not defined ASTROHYBRID_EXE set ASTROHYBRID_EXE=AstroBot.exe
 set KYTY_GPU_HOST_MODULE=astrohybrid_host.dll
 rem scePadGetTriggerEffectState answers from the game's trigger effect and the trigger travel, as a
@@ -30,6 +33,10 @@ if not defined APS5_PAD_TRIGGER_STATE set APS5_PAD_TRIGGER_STATE=1
 rem Motion sensors (2026-11-12, OVERNIGHT.md): the controller's accelerometer and gyroscope reach the game
 rem (shake and tilt moves); before, the game always read a controller at rest. ASTROHYBRID_PAD_MOTION=0 restores that.
 if not defined ASTROHYBRID_PAD_MOTION set ASTROHYBRID_PAD_MOTION=1
+rem Vibration strength of pads other than a DualSense (Xbox, Switch, generic), as percent of what the game
+rem asks for: ASTROHYBRID_RUMBLE_SCALE=0..200 (default 100). ASTROHYBRID_RUMBLE_SWITCH_FLOOR=n (default 0)
+rem lifts a Switch-type pad's motor to at least n of 255; the launchers pass 96 scaled by the strength, so a
+rem light setting stays light on Joy-Cons and Switch Pro pads (issue #36).
 rem Priority (A/B 2026-11-07, OVERNIGHT.md): the command processor at THREAD_PRIORITY_HIGHEST and the
 rem process above normal keep other programs off the reserved CP core. ASTROHYBRID_PRIORITY=normal and
 rem KYTY_CP_PRIORITY=1 restore the previous behaviour.

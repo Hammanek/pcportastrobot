@@ -27,7 +27,7 @@ locations); everything else works the same way. Only 01.019.000 has been tested.
 Requirements: Windows 10/11 x64, a Vulkan GPU; DLSS needs an RTX card, frame generation an RTX 40 or 50.
 Controllers: DualSense, DualShock 4, Xbox, Switch Pro and compatible pads, generic pads (the one you press plays).
 Command line: `AstroHybrid.exe --setup "<dump folder>"` runs the setup without a window; `--remove-game` removes
-what setup built. The classic one-window launcher (`AstroBot Launcher.exe`) is included too.
+what setup built.
 
 ### Screenshots
 
@@ -97,6 +97,18 @@ Caveat: numbers move with background load. With a browser playing audio the same
   - real-time game speed and the faster CPU path are always on (their checkboxes are gone).
 
 All new behaviour is behind environment switches that are off by default; the launcher turns them on.
+
+### Two graphics cards (laptops)
+
+A laptop with Intel or AMD integrated graphics plus an NVIDIA card (Optimus / hybrid) used to show only the
+integrated chip, so the RTX section stayed off. Both launchers now list every adapter, not only the one that
+drives the screen:
+
+- **Graphics page → Display → Graphics card**: "Automatic - best graphics card" (default) or a named card.
+  DLSS, Frame Generation and Reflex follow the card you pick; picking a non-RTX chip turns them off.
+- The renderer itself already prefers a discrete card, so Automatic is right for almost everyone. Pick the
+  integrated chip only to compare performance.
+- "Best settings for this PC" in the classic launcher now reads the discrete card on these laptops too.
 
 ## Requirements for the NVIDIA features
 

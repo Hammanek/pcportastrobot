@@ -41,10 +41,19 @@ namespace AstroHybrid.App.ViewModels
 
         public string CurrentGraphicsConfig => BuildGraphicsConfigString();
 
+        public string RayTracingToggleText => _mainViewModel.Settings.Lighting == 1 ? "RTX: ON" : "RTX: OFF";
+
         public bool CanLaunch => _mainViewModel.InstallationState?.IsInstalled == true;
 
         public ICommand NavigateToSettingsCommand { get; }
         public ICommand NavigateToInstallationCommand { get; }
+        public ICommand ToggleRayTracingCommand => new RelayCommand(() =>
+        {
+            _mainViewModel.Settings.Lighting = _mainViewModel.Settings.Lighting == 1 ? 0 : 1;
+            OnPropertyChanged(nameof(CurrentGraphicsConfig));
+            OnPropertyChanged(nameof(RayTracingToggleText));
+            _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.Settings));
+        });
 
         private string BuildGraphicsConfigString()
         {
@@ -54,7 +63,12 @@ namespace AstroHybrid.App.ViewModels
             if (_mainViewModel.Settings.Size >= 0 && _mainViewModel.Settings.Size < sizeLabels.Length)
                 parts.Add(sizeLabels[_mainViewModel.Settings.Size]);
 
+            if (_mainViewModel.Settings.Ultrawide)
+                parts.Add("21:9 Ultrawide");
+
             parts.Add(_mainViewModel.Settings.Fullscreen ? "Fullscreen" : "Windowed");
+
+            parts.Add(_mainViewModel.Settings.Lighting == 1 ? "RTX ON" : "RTX OFF (Non-RT)");
 
             if (_mainViewModel.Settings.Upscale != 0)
                 parts.Add("DLSS");

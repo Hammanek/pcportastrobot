@@ -157,6 +157,9 @@ namespace AstroHybrid.App.ViewModels
 
                 // Detect hardware
                 HardwareInfo = await Task.Run(() => _hardwareDetector.DetectHardware());
+                // The card chosen on the Graphics page (issue #24), -1 = automatic.
+                HardwareInfo.SelectGpu(Settings.Gpu);
+                OnPropertyChanged(nameof(HardwareInfo));
 
                 // Detect controllers
                 await RefreshControllersAsync();
@@ -224,15 +227,15 @@ namespace AstroHybrid.App.ViewModels
                 int exitCode;
                 if (Settings.FrameGenMode != 0)
                 {
-                    exitCode = await _launcherService.LaunchGameAsync(Settings);
+                    exitCode = await _launcherService.LaunchGameAsync(Settings, HardwareInfo);
                 }
                 else if (Settings.Upscale != 0)
                 {
-                    exitCode = await _launcherService.LaunchGameAsync(Settings);
+                    exitCode = await _launcherService.LaunchGameAsync(Settings, HardwareInfo);
                 }
                 else
                 {
-                    exitCode = await _launcherService.LaunchGameAsync(Settings);
+                    exitCode = await _launcherService.LaunchGameAsync(Settings, HardwareInfo);
                 }
 
                 StatusMessage = exitCode == 0 ? "Game exited normally" : $"Game exited with code {exitCode}";
@@ -264,7 +267,8 @@ namespace AstroHybrid.App.ViewModels
             Settings.FrameGenTarget = best.Target;
             Settings.LowLatency = best.LowLatency;
             Settings.Controller = 0; // Auto
-            Settings.Rumble = 2; // Medium
+            Settings.RumblePercent = 70; // Medium
+            Settings.Rumble = RumbleSetting.ToLegacyIndex(70);
 
             _settingsManager.Save(Settings);
             StatusMessage = "Applied best settings for this PC";

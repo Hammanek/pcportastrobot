@@ -22,6 +22,8 @@ namespace AstroHybrid.App.Services
         public bool RealTimeSpeed { get; set; }
         // The game code was converted for CPUs without AMD-only instructions (relinker --to-intel).
         public bool IntelConversion { get; set; }
+        // 21:9 render-space patch (the original game constant is 16:9).
+        public bool Ultrawide { get; set; }
         // Guest address of the game's frame-rate block (f64 60.0, f32 1/60, u64 16666 microseconds), found by
         // those values in AstroBot.exe; 0 = not found. Passed to the engine as ASTROHYBRID_GAME_STEP_ADDR.
         public ulong GameStepAddress { get; set; }
@@ -79,6 +81,13 @@ namespace AstroHybrid.App.Services
             ("soft command-buffer assert",
              "554889e5488d3ded6fbb07488d0dc47fc2074c8d052299e407be1f000000ba0100000031c0e8660eb6ff85c07402cd42488d3d3c54d20731c0e88235fbffcd4131c05dc3",
              "554889e5eb2a3ded6fbb07488d0dc47fc2074c8d052299e407be1f000000ba0100000031c0e8660eb6ff85c07402cd42488d3d3c54d20731c0e88235fbff909031c05dc3"),
+        };
+
+        // Astro Bot's internal render aspect constant: 16:9 -> 2.3888889 (3440x1440 / 21:9-class displays).
+        // The patch is kept as a separate executable variant so 16:9 users retain the original framing.
+        private static readonly (string Name, string Original, string Patched)[] UltrawidePatches =
+        {
+            ("ultrawide render aspect", "398EE33F", "8EE31840"),
         };
 
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
@@ -141,14 +150,27 @@ namespace AstroHybrid.App.Services
 
             Report(80, "Applying the faster-lighting patch...");
             var baseBytes = File.ReadAllBytes(Path.Combine(_runHybrid, "AstroBot.exe"));
+            var ultrawide = (byte[])baseBytes.Clone();
+            features.Ultrawide = ApplyAllOccurrences(ultrawide, UltrawidePatches, Log);
+            if (features.Ultrawide)
+                WriteVariant(ultrawide, "AstroBot-Ultrawide");
             var nonRt = (byte[])baseBytes.Clone();
             features.FasterLighting = ApplyAll(nonRt, FasterLightingPatches, Log);
             if (features.FasterLighting)
             {
                 WriteVariant(nonRt, "AstroBot-NonRT");
+                var nonRtUltrawide = (byte[])nonRt.Clone();
+                if (features.Ultrawide && ApplyAllOccurrences(nonRtUltrawide, UltrawidePatches, Log))
+                    WriteVariant(nonRtUltrawide, "AstroBot-NonRT-Ultrawide");
                 var soft = (byte[])nonRt.Clone();
                 if (ApplyAll(soft, SoftAssertPatches, Log))
                     WriteVariant(soft, "AstroBot-NonRT-SoftAssert");
+                if (features.Ultrawide)
+                {
+                    var softUltrawide = (byte[])nonRtUltrawide.Clone();
+                    if (ApplyAll(softUltrawide, SoftAssertPatches, Log))
+                        WriteVariant(softUltrawide, "AstroBot-NonRT-Ultrawide-SoftAssert");
+                }
             }
             // Real-time speed needs the frame-rate block; it is found by its initial values in any version (the
             // engine checks the block again before every use and turns the feature off if it is not one).
@@ -271,6 +293,9 @@ namespace AstroHybrid.App.Services
         {
             DeleteTree(app0);
             Directory.CreateDirectory(app0);
+            var archive = Path.Combine(_runHybrid, "app0.zar");
+            if (File.Exists(archive))
+                File.Delete(archive);
             foreach (var dir in Directory.GetDirectories(dump))
             {
                 var name = Path.GetFileName(dir);
@@ -292,7 +317,17 @@ namespace AstroHybrid.App.Services
                 }
             }
             foreach (var file in Directory.GetFiles(dump))
+            {
+                // app0.zar belongs beside the app0 directory so the runtime can mount it as the
+                // streamed replacement for app0\data. It must not be copied inside app0 itself.
+                if (Path.GetFileName(file).Equals("app0.zar", StringComparison.OrdinalIgnoreCase))
+                {
+                    LinkOrCopy(file, archive);
+                    log("app0.zar: linked beside app0 for streamed data");
+                    continue;
+                }
                 LinkOrCopy(file, Path.Combine(app0, Path.GetFileName(file)));
+            }
             // args.txt carries the game's start arguments; some dumps leave it out, and without "-mode product" the
             // game starts as a development build that reads its data from the developer's host and stops at its
             // error screen. The standard arguments go into app0 (never into the dump).
@@ -373,6 +408,37 @@ namespace AstroHybrid.App.Services
                 var bytes = Hex(patches[i].Patched);
                 Array.Copy(bytes, 0, data, offsets[i], bytes.Length);
                 log($"patch '{patches[i].Name}' at 0x{offsets[i]:x}");
+            }
+            return true;
+        }
+
+        // Some game constants are intentionally duplicated in the executable. The ultrawide aspect
+        // constant is one of those: every copy must change or the game can still use 16:9 in one path.
+        private static bool ApplyAllOccurrences(byte[] data, (string Name, string Original, string Patched)[] patches, Action<string> log)
+        {
+            foreach (var (name, original, patched) in patches)
+            {
+                var source = Hex(original);
+                var replacement = Hex(patched);
+                int count = 0;
+                for (int i = 0; i <= data.Length - source.Length; i++)
+                {
+                    bool match = true;
+                    for (int j = 0; j < source.Length; j++)
+                    {
+                        if (data[i + j] != source[j]) { match = false; break; }
+                    }
+                    if (!match) continue;
+                    Array.Copy(replacement, 0, data, i, replacement.Length);
+                    count++;
+                    log($"patch '{name}' at 0x{i:x}");
+                    i += source.Length - 1;
+                }
+                if (count == 0)
+                {
+                    log($"patch '{name}': found 0 times, skipped (this game version differs)");
+                    return false;
+                }
             }
             return true;
         }

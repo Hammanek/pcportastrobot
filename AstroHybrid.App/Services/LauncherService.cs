@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using AstroHybrid.App.Models;
 
@@ -18,7 +19,7 @@ namespace AstroHybrid.App.Services
             _settingsManager = new SettingsManager(rootDirectory);
         }
 
-        public async Task<int> LaunchGameAsync(AppSettings settings)
+        public async Task<int> LaunchGameAsync(AppSettings settings, HardwareInfo? hardware = null)
         {
             var batPath = Path.Combine(_rootDirectory, "Run-AstroHybrid.bat");
             if (!File.Exists(batPath))
@@ -37,7 +38,7 @@ namespace AstroHybrid.App.Services
             _settingsManager.Save(settings);
 
             // Build environment variables from settings
-            var envVars = BuildEnvironmentVariables(settings);
+            var envVars = BuildEnvironmentVariables(settings, hardware);
 
             var psi = new ProcessStartInfo
             {
@@ -87,7 +88,7 @@ namespace AstroHybrid.App.Services
             return await tcs.Task;
         }
 
-        public async Task<int> LaunchGameWithDlssAsync(AppSettings settings)
+        public async Task<int> LaunchGameWithDlssAsync(AppSettings settings, HardwareInfo? hardware = null)
         {
             var batPath = Path.Combine(_rootDirectory, "Run-AstroHybrid-DLSS.bat");
             if (!File.Exists(batPath))
@@ -104,7 +105,7 @@ namespace AstroHybrid.App.Services
             settings.LastLaunched = DateTime.Now;
             _settingsManager.Save(settings);
 
-            var envVars = BuildEnvironmentVariables(settings);
+            var envVars = BuildEnvironmentVariables(settings, hardware);
             // DLSS-specific overrides
             envVars["ASTROHYBRID_DLSS"] = "1";
             envVars["ASTROHYBRID_CUDA_HOLE"] = "1";
@@ -137,7 +138,7 @@ namespace AstroHybrid.App.Services
             return await tcs.Task;
         }
 
-        public async Task<int> LaunchGameWithFrameGenAsync(AppSettings settings)
+        public async Task<int> LaunchGameWithFrameGenAsync(AppSettings settings, HardwareInfo? hardware = null)
         {
             var batPath = Path.Combine(_rootDirectory, "Run-AstroHybrid-FG.bat");
             if (!File.Exists(batPath))
@@ -154,7 +155,7 @@ namespace AstroHybrid.App.Services
             settings.LastLaunched = DateTime.Now;
             _settingsManager.Save(settings);
 
-            var envVars = BuildEnvironmentVariables(settings);
+            var envVars = BuildEnvironmentVariables(settings, hardware);
             // Frame Gen specific overrides
             envVars["ASTROHYBRID_DLSSG"] = "1";
             envVars["ASTROHYBRID_CUDA_HOLE"] = "1";
@@ -188,18 +189,33 @@ namespace AstroHybrid.App.Services
             return await tcs.Task;
         }
 
-        private Dictionary<string, string> BuildEnvironmentVariables(AppSettings settings)
+        private Dictionary<string, string> BuildEnvironmentVariables(AppSettings settings, HardwareInfo? hardware)
         {
             var env = new Dictionary<string, string>();
+
+            // Graphics card (issue #24): an explicit choice names the card for the AnyPS5 renderer.
+            // kyty_gpu.dll (Run-AstroHybrid.bat) prefers a discrete card over integrated graphics by
+            // itself, so an automatic choice passes nothing and the renderer keeps that preference.
+            var gpu = hardware?.SelectedGpu;
+            if (hardware != null && hardware.SelectedGpuIndex >= 0 && gpu != null)
+            {
+                env["ANYPS5_GPU"] = GpuMatchToken(gpu.Name);
+            }
 
             // Lighting/renderer selection
             // What this game build supports (GameSetup); no file = the original 01.019.000 install.
             var runHybrid = Path.Combine(_rootDirectory, "Build", "RunHybrid");
             var features = GameFeatures.Load(runHybrid);
-            var lightingExes = new[] { "AstroBot-NonRT.exe", "AstroBot.exe" };
+            // Prefer the soft-assert variant so a command-buffer overflow follows the
+            // engine's failure path instead of crashing in command_buffer_writer (issue #25).
+            var lightingExes = settings.Ultrawide
+                ? new[] { "AstroBot-NonRT-Ultrawide-SoftAssert.exe", "AstroBot-Ultrawide.exe" }
+                : new[] { "AstroBot-NonRT-SoftAssert.exe", "AstroBot.exe" };
             if (settings.Lighting >= 0 && settings.Lighting < lightingExes.Length)
             {
                 var exe = lightingExes[settings.Lighting];
+                if (settings.Lighting == 0 && !File.Exists(Path.Combine(runHybrid, exe)))
+                    exe = settings.Ultrawide ? "AstroBot-NonRT-Ultrawide.exe" : "AstroBot-NonRT.exe";
                 env["ASTROHYBRID_EXE"] = File.Exists(Path.Combine(runHybrid, exe)) ? exe : "AstroBot.exe";
             }
 
@@ -284,13 +300,15 @@ namespace AstroHybrid.App.Services
                 env["ASTROHYBRID_PAD_PREFER"] = padValues[settings.Controller];
             }
 
-            var rumbleValues = new[] { "0", "40", "70", "100", "150" };
-            if (settings.Rumble >= 0 && settings.Rumble < rumbleValues.Length)
-            {
-                env["ASTROHYBRID_RUMBLE_SCALE"] = rumbleValues[settings.Rumble];
-            }
+            // Vibration strength in percent (0-200); the Switch boost follows it instead of being a flat
+            // 96 of 255, which made low strengths louder than the setting itself (#36).
+            int rumblePercent = settings.EffectiveRumblePercent;
+            env["ASTROHYBRID_RUMBLE_SCALE"] = rumblePercent.ToString();
+            env["ASTROHYBRID_RUMBLE_SWITCH_FLOOR"] = RumbleSetting.SwitchFloor(rumblePercent, settings.SwitchBoost).ToString();
 
-            env["ASTROHYBRID_RUMBLE_SWITCH_FLOOR"] = settings.SwitchBoost ? "96" : "0";
+            // Wireless DualSense features (Bluetooth HID audio/haptics) - issue #34
+            env["ASTROHYBRID_DS_WIRELESS_SPEAKER"] = settings.DualSenseWirelessSpeaker ? "1" : "0";
+            env["ASTROHYBRID_DS_WIRELESS_HAPTICS"] = settings.DualSenseWirelessHaptics ? "1" : "0";
 
             // Window title
             env["ASTROHYBRID_WINDOW_TITLE"] = "Astro Bot";
@@ -316,6 +334,22 @@ namespace AstroHybrid.App.Services
             env["ASTROHYBRID_COMMIT_EPOCH_FASTPATH"] = "1";
 
             return env;
+        }
+
+        // The renderer selects a card by name (ANYPS5_GPU, a case-insensitive substring of the Vulkan
+        // device name). The model token is used instead of the full Windows name so it still matches
+        // the shorter name Vulkan reports ("NVIDIA GeForce RTX 4050 Laptop GPU" -> "RTX 4050").
+        public static string GpuMatchToken(string name)
+        {
+            var match = Regex.Match(name, @"(?:RTX|GTX)\s*\d{3,4}(?:\s*(?:Ti|SUPER))?", RegexOptions.IgnoreCase);
+            if (match.Success) return match.Value;
+            match = Regex.Match(name, @"Arc\s*[AB]?\d{3}", RegexOptions.IgnoreCase);
+            if (match.Success) return match.Value;
+            match = Regex.Match(name, @"(?:UHD|Iris(?:\s*Xe)?|HD)\s*Graphics(?:\s*\d{3})?", RegexOptions.IgnoreCase);
+            if (match.Success) return match.Value;
+            match = Regex.Match(name, @"RX\s*\d{4}(?:\s*XT)?", RegexOptions.IgnoreCase);
+            if (match.Success) return match.Value;
+            return name;
         }
 
         // The console language number for the Windows display language; English (United States) when unknown.
