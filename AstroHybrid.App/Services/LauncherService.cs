@@ -332,6 +332,7 @@ namespace AstroHybrid.App.Services
 
             // Always-on optimizations
             env["ASTROHYBRID_COMMIT_EPOCH_FASTPATH"] = "1";
+            env["APS5_SAVEDATA_TRANSFER_FALLBACK"] = "1";
 
             return env;
         }

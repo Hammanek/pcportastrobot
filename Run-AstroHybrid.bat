@@ -30,6 +30,9 @@ rem scePadGetTriggerEffectState answers from the game's trigger effect and the t
 rem DualSense does; Astro Bot ignores L2/R2 while it reads "no effect" (2026-11-07). Rumble, light bar and
 rem trigger forces reach the controller through Kyty (ABI 1.4). APS5_PAD_TRIGGER_STATE=0 restores zeros.
 if not defined APS5_PAD_TRIGGER_STATE set APS5_PAD_TRIGGER_STATE=1
+rem Older Astro Bot builds (e.g. PPSA21564 01.007.000, issue #27) call sceSaveDataTransferringMount
+rem as their initial save mount; opt into the mount3 fallback unless explicitly disabled.
+if not defined APS5_SAVEDATA_TRANSFER_FALLBACK set APS5_SAVEDATA_TRANSFER_FALLBACK=1
 rem Motion sensors (2026-11-12, OVERNIGHT.md): the controller's accelerometer and gyroscope reach the game
 rem (shake and tilt moves); before, the game always read a controller at rest. ASTROHYBRID_PAD_MOTION=0 restores that.
 if not defined ASTROHYBRID_PAD_MOTION set ASTROHYBRID_PAD_MOTION=1
