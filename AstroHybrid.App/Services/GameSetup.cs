@@ -150,6 +150,8 @@ namespace AstroHybrid.App.Services
 
             Report(80, "Applying the faster-lighting patch...");
             var baseBytes = File.ReadAllBytes(Path.Combine(_runHybrid, "AstroBot.exe"));
+            if (ApplyClothPhysicsPatches(baseBytes, Log))
+                File.WriteAllBytes(Path.Combine(_runHybrid, "AstroBot.exe"), baseBytes);
             var ultrawide = (byte[])baseBytes.Clone();
             features.Ultrawide = ApplyAllOccurrences(ultrawide, UltrawidePatches, Log);
             if (features.Ultrawide)
@@ -367,6 +369,95 @@ namespace AstroHybrid.App.Services
                 file.Delete();
             }
             Directory.Delete(path, false);
+        }
+
+        // Keep ClothSimulation and ApCloth stepped at <= 1/60s when real-time game speed runs below 60 FPS (#30, #35).
+        // Leaves the main game loop untouched so gameplay stays 100% real-time while cloth/blankets stay stable.
+        private static bool ApplyClothPhysicsPatches(byte[] data, Action<string> log)
+        {
+            int cave1Match = FindUnique(data, Hex("FE08C3" + new string('C', 26) + "488B05"), out int cave1Count);
+            int cave2Match = FindUnique(data, Hex("FE08C3" + new string('C', 30) + "C5FA1005"), out int cave2Count);
+            int apClothMatch = FindUnique(data, Hex("488B8380000000488B8B88000000C5F8298540F8FFFF4839C8742C"), out int apClothCount);
+            if (cave1Match < 0 || cave2Match < 0 || apClothMatch < 0)
+            {
+                log($"cloth physics patch skipped (matches: cave1={cave1Count}, cave2={cave2Count}, apCloth={apClothCount})");
+                return false;
+            }
+            int cave1Off = cave1Match + 3;
+            int getDtUsOff = cave1Match + 16;
+            int cave2Off = cave2Match + 3;
+            int apClothStoreOff = apClothMatch + 14;
+            int cloth1CallOff = FindUniqueCallTo(data, Hex("C578294580"), Hex("C4E1F96EC0"), getDtUsOff, 0, data.Length, out int cloth1Count);
+            int cloth2Count = 0;
+            int cloth2CallOff = cloth1CallOff < 0 ? -1 : FindUniqueCallTo(data, Hex("C5F82945C0"), Hex("C4E1F96EC0"), getDtUsOff, cloth1CallOff, Math.Min(data.Length, cloth1CallOff + 0x10000), out cloth2Count);
+            if (cloth1CallOff < 0 || cloth2CallOff < 0 || !InSameSection(data, cave1Off, cave2Off, apClothStoreOff, cloth1CallOff, cloth2CallOff))
+            {
+                log($"cloth physics patch skipped (cloth1={cloth1Count}, cloth2={cloth2Count})");
+                return false;
+            }
+
+            // Pin ClothSimulation::get_dt_us calls to 16666 us (1/60s).
+            byte[] fixedUs = Hex("B81A410000");
+            Array.Copy(fixedUs, 0, data, cloth1CallOff, fixedUs.Length);
+            Array.Copy(fixedUs, 0, data, cloth2CallOff, fixedUs.Length);
+
+            // Clamp ApCloth step dt in xmm0 to min(dt, 1.0f/60.0f) via two INT3 code caves.
+            byte[] cave1Code = Hex("C5FA5DC1C5F8298540F8FFFFC3");
+            Array.Copy(cave1Code, 0, data, cave1Off, cave1Code.Length);
+
+            byte[] cave2Prefix = Hex("BA8988883CC4E1F96ECA");
+            Array.Copy(cave2Prefix, 0, data, cave2Off, cave2Prefix.Length);
+            data[cave2Off + 10] = 0xE9;
+            Array.Copy(BitConverter.GetBytes(cave1Off - (cave2Off + 15)), 0, data, cave2Off + 11, 4);
+
+            data[apClothStoreOff] = 0xE8;
+            Array.Copy(BitConverter.GetBytes(cave2Off - (apClothStoreOff + 5)), 0, data, apClothStoreOff + 1, 4);
+            data[apClothStoreOff + 5] = 0x0F;
+            data[apClothStoreOff + 6] = 0x1F;
+            data[apClothStoreOff + 7] = 0x00;
+
+            log($"cloth physics 60Hz clamp applied (cloth1=0x{cloth1CallOff:x}, cloth2=0x{cloth2CallOff:x}, apCloth=0x{apClothStoreOff:x})");
+            return true;
+        }
+
+        private static int FindUniqueCallTo(byte[] data, byte[] prefix, byte[] suffix, int targetOffset, int startOff, int endOff, out int count)
+        {
+            count = 0;
+            int found = -1;
+            int total = prefix.Length + 5 + suffix.Length;
+            int limit = Math.Min(endOff, data.Length) - total;
+            for (int i = Math.Max(0, startOff); i <= limit; i++)
+            {
+                if (data[i] != prefix[0] || data[i + prefix.Length] != 0xE8) continue;
+                bool ok = true;
+                for (int j = 1; j < prefix.Length; j++)
+                    if (data[i + j] != prefix[j]) { ok = false; break; }
+                if (!ok) continue;
+                int callOff = i + prefix.Length;
+                if (callOff + 5 + BitConverter.ToInt32(data, callOff + 1) != targetOffset) continue;
+                for (int j = 0; j < suffix.Length; j++)
+                    if (data[callOff + 5 + j] != suffix[j]) { ok = false; break; }
+                if (!ok) continue;
+                count++;
+                found = callOff;
+                if (count > 1) return -1;
+            }
+            return count == 1 ? found : -1;
+        }
+
+        private static bool InSameSection(byte[] exe, params int[] offsets)
+        {
+            int pe = BitConverter.ToInt32(exe, 0x3C);
+            int sections = BitConverter.ToUInt16(exe, pe + 6);
+            int optional = BitConverter.ToUInt16(exe, pe + 20);
+            for (int s = 0; s < sections; s++)
+            {
+                int o = pe + 24 + optional + s * 40;
+                uint rawSize = BitConverter.ToUInt32(exe, o + 16), rawPtr = BitConverter.ToUInt32(exe, o + 20);
+                if (offsets.All(off => off >= rawPtr && off < rawPtr + rawSize))
+                    return true;
+            }
+            return false;
         }
 
         private static int FindUnique(byte[] data, byte[] pattern, out int count)

@@ -330,8 +330,9 @@ namespace AstroHybrid.App.Services
             env["ASTROHYBRID_PAD_MOTION"] = settings.MotionControls ? "1" : "0";
             if (!settings.TriggerState) env["APS5_PAD_TRIGGER_STATE"] = "0";
 
-            // Always-on optimizations
-            env["ASTROHYBRID_COMMIT_EPOCH_FASTPATH"] = "1";
+            // Cloth/blanket/bubble stability (#30, #35): keep commit epoch fast path off and enable buffer range fixes.
+            env["ASTROHYBRID_COMMIT_EPOCH_FASTPATH"] = "0";
+            env["KYTY_BUFFER_RANGE_FIXES"] = "1";
             env["APS5_SAVEDATA_TRANSFER_FALLBACK"] = "1";
 
             return env;

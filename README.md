@@ -83,7 +83,7 @@ Caveat: numbers move with background load. With a browser playing audio the same
   2x / 3x / 4x), with an **adaptive mode** that picks the multiplier in game every half second to stay at or
   above a target on screen (`ASTROHYBRID_DLSSG_TARGET`). The game itself is never capped below 30 FPS.
 - **NVIDIA Reflex** for Vulkan through `VK_NV_low_latency2` (`ASTROHYBRID_LOW_LATENCY=1`).
-- **Faster CPU path** for buffer bindings (`ASTROHYBRID_COMMIT_EPOCH_FASTPATH=1`), now always on.
+- **Cloth and bubble stability** (`KYTY_BUFFER_RANGE_FIXES=1`, `ASTROHYBRID_COMMIT_EPOCH_FASTPATH=0`, plus 60 Hz cloth physics step cap during real-time speed below 60 FPS; issues #30, #35).
 - **Performance overlay** shows frames on screen and the game's own rate with Frame Generation.
 - **Controllers**: DualSense (rumble, light bar, adaptive triggers, motion), Xbox, Switch Pro and compatible
   pads, generic pads. The pad you press becomes player 1 (before, a second pad got no input), vibration

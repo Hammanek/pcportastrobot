@@ -508,9 +508,10 @@ static class AstroBotLauncher
         psi.EnvironmentVariables["KYTY_GPU_WIDTH"] = SizeValues[size.SelectedIndex, 0].ToString();
         psi.EnvironmentVariables["KYTY_GPU_HEIGHT"] = SizeValues[size.SelectedIndex, 1].ToString();
         psi.EnvironmentVariables["KYTY_GPU_FULLSCREEN"] = fullscreen.Checked ? "1" : "0";
-        // Real-time game speed and the commit fast path (OVERNIGHT.md 2026-11-11, 0 mismatches) are always on.
+        // Real-time game speed is on; keep commit-epoch fast path off and buffer-range fixes on for cloth/bubbles (#30, #35).
         psi.EnvironmentVariables["ASTROHYBRID_GAME_SPEED"] = realTimeKnown ? "1" : "0";
-        psi.EnvironmentVariables["ASTROHYBRID_COMMIT_EPOCH_FASTPATH"] = "1";
+        psi.EnvironmentVariables["ASTROHYBRID_COMMIT_EPOCH_FASTPATH"] = "0";
+        psi.EnvironmentVariables["KYTY_BUFFER_RANGE_FIXES"] = "1";
         psi.EnvironmentVariables["ASTROHYBRID_PAD_PREFER"] = PadValues[pad.SelectedIndex];
         // Strength in percent (#36). The Switch boost follows it: 96 of 255 at 100% (the old flat value),
         // less at lower strengths so a light setting stays light on Joy-Cons and Switch Pro pads.
