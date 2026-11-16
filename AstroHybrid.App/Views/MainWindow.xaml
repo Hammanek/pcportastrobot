@@ -8,7 +8,7 @@
         xmlns:vm="clr-namespace:AstroHybrid.App.ViewModels"
         xmlns:models="clr-namespace:AstroHybrid.App.Models"
         mc:Ignorable="d"
-        Title="AstroHybrid" Height="720" Width="1100"
+         Title="AstroHybrid" Height="760" Width="1200"
         WindowStartupLocation="CenterScreen"
         MinHeight="600" MinWidth="900"
         Style="{StaticResource MainWindowStyle}"
@@ -39,7 +39,7 @@
                 </Grid.RowDefinitions>
 
                 <!-- Logo -->
-                <Border Grid.Row="0" Padding="20,20,20,10" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+                 <Border Grid.Row="0" Padding="20,20,20,10" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
                     <StackPanel Orientation="Horizontal">
                         <Border Width="40" Height="40" CornerRadius="8" Background="{StaticResource PrimaryBrush}">
                             <TextBlock Text="★" FontSize="24" Foreground="White"
@@ -125,6 +125,7 @@
                                      Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                     </StackPanel>
                 </Border>
+
             </Grid>
         </Border>
 
@@ -176,6 +177,29 @@
                     </Grid>
                 </Border>
 
+                <!-- Persistent update strip after the user chooses Ignore for Now -->
+                <Border Grid.Row="0" VerticalAlignment="Top" Margin="30,30,30,0"
+                        Visibility="{Binding HasIgnoredUpdate, Converter={StaticResource BooleanToVisibilityConverter}}"
+                        Background="{StaticResource SurfaceLightBrush}" CornerRadius="8" Padding="14"
+                        BorderBrush="{StaticResource WarningBrush}" BorderThickness="1">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="↻" FontSize="20" Foreground="{StaticResource WarningBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,12,0"/>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="UPDATE AVAILABLE" FontSize="12" FontWeight="Bold" Foreground="{StaticResource WarningBrush}"/>
+                            <TextBlock Text="{Binding UpdateState.IgnoredUpdate.ReleaseName}" FontSize="13" Foreground="{StaticResource TextPrimaryBrush}"/>
+                        </StackPanel>
+                        <Button Grid.Column="2" Content="Update Now" Command="{Binding DownloadUpdateCommand}"
+                                Style="{StaticResource SecondaryButtonStyle}" MinWidth="112" MinHeight="34"
+                                Margin="16,0,0,0"/>
+                    </Grid>
+                </Border>
+
                 <!-- Bottom Action Bar -->
                 <Border Grid.Row="1" Padding="30,20" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
                     <Grid>
@@ -195,8 +219,8 @@
                             <Button Content="Update" Command="{Binding DownloadUpdateCommand}"
                                     Style="{StaticResource PrimaryButtonStyle}" MinWidth="120" MinHeight="48"
                                     FontSize="16" FontWeight="SemiBold" Margin="0,0,10,0"
-                                    Visibility="{Binding UpdateState.UpdateAvailable, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                    IsEnabled="{Binding UpdateState.UpdateAvailable, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                    Visibility="{Binding HasUpdateAction, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                     IsEnabled="{Binding HasUpdateAction}"/>
                             <Button Content="Play" Command="{Binding LaunchGameCommand}"
                                     Style="{StaticResource PrimaryButtonStyle}" MinWidth="140" MinHeight="48"
                                     FontSize="16" FontWeight="SemiBold"

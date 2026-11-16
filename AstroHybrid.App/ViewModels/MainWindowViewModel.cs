@@ -83,7 +83,7 @@ namespace AstroHybrid.App.ViewModels
 
             // Update commands
             CheckForUpdatesCommand = new RelayCommand(async () => await CheckForUpdatesAsync(true));
-            DownloadUpdateCommand = new RelayCommand(async () => await DownloadAndInstallUpdateAsync(), () => UpdateState.UpdateAvailable && !UpdateState.IsDownloading && !UpdateState.IsInstalling);
+             DownloadUpdateCommand = new RelayCommand(async () => await DownloadAndInstallUpdateAsync(), () => HasUpdateAction && !UpdateState.IsDownloading && !UpdateState.IsInstalling);
             IgnoreUpdateCommand = new RelayCommand(IgnoreUpdate);
             DismissUpdateNotificationCommand = new RelayCommand(() => ShowUpdateNotification = false);
 
@@ -140,6 +140,10 @@ namespace AstroHybrid.App.ViewModels
             get => _updateState;
             set => SetProperty(ref _updateState, value);
         }
+
+        public bool HasUpdateAction => UpdateState.UpdateAvailable || UpdateState.IgnoredUpdate != null;
+
+        public bool HasIgnoredUpdate => !UpdateState.UpdateAvailable && UpdateState.IgnoredUpdate != null;
 
         public bool ShowUpdateNotification
         {
@@ -551,6 +555,8 @@ namespace AstroHybrid.App.ViewModels
 
             // Refresh command states
             OnPropertyChanged(nameof(UpdateState));
+            OnPropertyChanged(nameof(HasUpdateAction));
+            OnPropertyChanged(nameof(HasIgnoredUpdate));
             (DownloadUpdateCommand as RelayCommand)?.RaiseCanExecuteChanged();
         }
 
@@ -570,7 +576,8 @@ namespace AstroHybrid.App.ViewModels
         {
             if (_updateService == null || UpdateState.LatestUpdate == null) return;
 
-            var updateInfo = UpdateState.LatestUpdate;
+            var updateInfo = UpdateState.LatestUpdate ?? UpdateState.IgnoredUpdate;
+            if (updateInfo == null) return;
 
             // Download the update
             var downloadSuccess = await _updateService.DownloadUpdateAsync(updateInfo);
@@ -592,8 +599,6 @@ namespace AstroHybrid.App.ViewModels
                 settings.IgnoredUpdateVersion = null;
                 _settingsManager.Save(settings);
 
-                // Restart the launcher
-                RestartLauncher();
             }
         }
 
@@ -604,6 +609,12 @@ namespace AstroHybrid.App.ViewModels
                 _updateService?.IgnoreVersion(UpdateState.LatestUpdate.Version);
                 ShowUpdateNotification = false;
                 UpdateState.IgnoredVersion = UpdateState.LatestUpdate.Version;
+                UpdateState.IgnoredUpdate = UpdateState.LatestUpdate;
+                UpdateState.LatestUpdate = null;
+                UpdateState.UpdateAvailable = false;
+                OnPropertyChanged(nameof(UpdateState));
+                OnPropertyChanged(nameof(HasUpdateAction));
+                OnPropertyChanged(nameof(HasIgnoredUpdate));
             }
         }
 

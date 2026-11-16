@@ -12,17 +12,17 @@
     <local:ControllerTypeToIconConverter x:Key="ControllerTypeToIconConverter"/>
 
     <!-- Color Palette -->
-    <Color x:Key="PrimaryColor">#FF0066CC</Color>
-    <Color x:Key="PrimaryDarkColor">#FF0052A3</Color>
-    <Color x:Key="PrimaryLightColor">#FF3385D6</Color>
-    <Color x:Key="AccentColor">#FF00D4AA</Color>
-    <Color x:Key="BackgroundColor">#FF1A1A2E</Color>
-    <Color x:Key="SurfaceColor">#FF16213E</Color>
-    <Color x:Key="SurfaceLightColor">#FF1F2A44</Color>
-    <Color x:Key="BorderColor">#FF2D3A5E</Color>
+    <Color x:Key="PrimaryColor">#FF7C6CFF</Color>
+    <Color x:Key="PrimaryDarkColor">#FF5B4BD6</Color>
+    <Color x:Key="PrimaryLightColor">#FF9A8FFF</Color>
+    <Color x:Key="AccentColor">#FF63E6BE</Color>
+    <Color x:Key="BackgroundColor">#FF08090C</Color>
+    <Color x:Key="SurfaceColor">#FF101218</Color>
+    <Color x:Key="SurfaceLightColor">#FF191C24</Color>
+    <Color x:Key="BorderColor">#FF282C36</Color>
     <Color x:Key="TextPrimaryColor">#FFFFFFFF</Color>
-    <Color x:Key="TextSecondaryColor">#FFB0B8D0</Color>
-    <Color x:Key="TextMutedColor">#FF6A7490</Color>
+    <Color x:Key="TextSecondaryColor">#FFB7BBC7</Color>
+    <Color x:Key="TextMutedColor">#FF737987</Color>
     <Color x:Key="ErrorColor">#FFFF4444</Color>
     <Color x:Key="SuccessColor">#FF00D4AA</Color>
     <Color x:Key="WarningColor">#FFFFAA00</Color>

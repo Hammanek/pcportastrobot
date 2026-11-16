@@ -74,24 +74,11 @@ namespace AstroHybrid.App.Services
                 // Load settings to check ignored version and last check time
                 var settings = _settingsManager.Load();
 
-                // Respect check interval (default 24 hours) unless forced
-                if (!forceCheck && settings.LastUpdateCheck.HasValue)
-                {
-                    var elapsed = DateTime.Now - settings.LastUpdateCheck.Value;
-                    if (elapsed.TotalHours < 24)
-                    {
-                        state.IsChecking = false;
-                        state.LastCheckTime = settings.LastUpdateCheck.Value;
-                        state.ErrorMessage = "Update check skipped (checked recently). Use force check to override.";
-                        StateChanged?.Invoke(state);
-                        return state;
-                    }
-                }
-
                 var releases = await FetchReleasesAsync();
 
                 // Find the latest non-prerelease release with a valid launcher asset
                 UpdateInfo? latestUpdate = null;
+                UpdateInfo? ignoredUpdate = null;
 
                 foreach (var release in releases)
                 {
@@ -126,6 +113,7 @@ namespace AstroHybrid.App.Services
                             {
                                 // Update was ignored, but still track it
                                 state.IgnoredVersion = version;
+                                ignoredUpdate = updateInfo;
                             }
                         }
                     }
@@ -133,6 +121,7 @@ namespace AstroHybrid.App.Services
 
                 state.UpdateAvailable = latestUpdate != null;
                 state.LatestUpdate = latestUpdate;
+                state.IgnoredUpdate = ignoredUpdate;
                 state.LastCheckTime = DateTime.Now;
                 state.IsChecking = false;
 
@@ -290,7 +279,8 @@ namespace AstroHybrid.App.Services
                 state.DownloadStatus = "Extracting update...";
                 StateChanged?.Invoke(state);
 
-                // Extract to temp directory
+                // Extract to temp directory. The running executable cannot reliably replace itself,
+                // so a small updater process will copy these files after this process exits.
                 var extractDir = Path.Combine(_tempDirectory, "extract");
                 if (Directory.Exists(extractDir))
                 {
@@ -300,7 +290,7 @@ namespace AstroHybrid.App.Services
 
                 ZipFile.ExtractToDirectory(tempFile, extractDir);
 
-                state.DownloadStatus = "Installing update...";
+                state.DownloadStatus = "Finishing update after launcher closes...";
                 StateChanged?.Invoke(state);
 
                 // Find the launcher executable in the extracted files
@@ -310,20 +300,11 @@ namespace AstroHybrid.App.Services
                     throw new InvalidOperationException("Launcher executable not found in update package");
                 }
 
-                // Copy new launcher files to application directory
-                await CopyUpdateFilesAsync(extractDir);
+                await ScheduleUpdateInstallAsync(extractDir);
 
                 state.DownloadStatus = "Update installed successfully";
                 state.IsInstalling = false;
                 StateChanged?.Invoke(state);
-
-                // Clean up
-                try
-                {
-                    Directory.Delete(extractDir, true);
-                    File.Delete(tempFile);
-                }
-                catch { }
 
                 return true;
             }
@@ -431,6 +412,54 @@ namespace AstroHybrid.App.Services
 
             await Task.CompletedTask;
         }
+
+        private async Task ScheduleUpdateInstallAsync(string extractDir)
+        {
+            var appDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+            if (appDir == null) throw new InvalidOperationException("Cannot determine application directory");
+
+            var scriptPath = Path.Combine(_tempDirectory, "apply-update.ps1");
+            var currentPid = Process.GetCurrentProcess().Id;
+            var escapedSource = EscapePowerShellString(extractDir);
+            var escapedTarget = EscapePowerShellString(appDir);
+            var escapedExe = EscapePowerShellString(System.Reflection.Assembly.GetExecutingAssembly().Location);
+            var escapedTemp = EscapePowerShellString(_tempDirectory);
+            var script = $@"
+$ErrorActionPreference = 'Stop'
+$source = '{escapedSource}'
+$target = '{escapedTarget}'
+$launcher = '{escapedExe}'
+$temp = '{escapedTemp}'
+while (Get-Process -Id {currentPid} -ErrorAction SilentlyContinue) {{ Start-Sleep -Milliseconds 250 }}
+Get-ChildItem -LiteralPath $source -Recurse -File | ForEach-Object {{
+    $relative = $_.FullName.Substring($source.Length).TrimStart('\')
+    $destination = Join-Path $target $relative
+    $directory = Split-Path -Parent $destination
+    if ($directory) {{ New-Item -ItemType Directory -Force -Path $directory | Out-Null }}
+    Copy-Item -LiteralPath $_.FullName -Destination $destination -Force
+}}
+Remove-Item -LiteralPath $source -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath (Join-Path $temp '*.zip') -Force -ErrorAction SilentlyContinue
+Start-Process -FilePath $launcher
+Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
+";
+            File.WriteAllText(scriptPath, script, Encoding.UTF8);
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                Arguments = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{scriptPath}\"",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WorkingDirectory = appDir
+            };
+            Process.Start(psi);
+            await Task.Delay(150);
+            System.Windows.Application.Current?.Dispatcher.BeginInvoke(new Action(() =>
+                System.Windows.Application.Current.Shutdown()));
+        }
+
+        private static string EscapePowerShellString(string value) => value.Replace("'", "''");
 
         private async Task<string> ComputeSha256Async(string filePath)
         {

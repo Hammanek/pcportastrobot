@@ -105,6 +105,7 @@ namespace AstroHybrid.App.Models
     {
         public bool UpdateAvailable { get; set; }
         public UpdateInfo? LatestUpdate { get; set; }
+        public UpdateInfo? IgnoredUpdate { get; set; }
         public string CurrentVersion { get; set; } = "";
         public DateTime LastCheckTime { get; set; }
         public string? IgnoredVersion { get; set; }
