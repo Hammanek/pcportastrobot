@@ -208,14 +208,18 @@ namespace AstroHybrid.App.Services
             var features = GameFeatures.Load(runHybrid);
             // Prefer the soft-assert variant so a command-buffer overflow follows the
             // engine's failure path instead of crashing in command_buffer_writer (issue #25).
-            var lightingExes = settings.Ultrawide
+            var lightingExes = settings.Ultrawide && settings.Size == 6
+                ? new[] { "AstroBot-NonRT-SuperUltrawide-SoftAssert.exe", "AstroBot-SuperUltrawide.exe" }
+                : settings.Ultrawide
                 ? new[] { "AstroBot-NonRT-Ultrawide-SoftAssert.exe", "AstroBot-Ultrawide.exe" }
                 : new[] { "AstroBot-NonRT-SoftAssert.exe", "AstroBot.exe" };
             if (settings.Lighting >= 0 && settings.Lighting < lightingExes.Length)
             {
                 var exe = lightingExes[settings.Lighting];
                 if (settings.Lighting == 0 && !File.Exists(Path.Combine(runHybrid, exe)))
-                    exe = settings.Ultrawide ? "AstroBot-NonRT-Ultrawide.exe" : "AstroBot-NonRT.exe";
+                    exe = settings.Ultrawide
+                        ? (settings.Size == 6 ? "AstroBot-NonRT-SuperUltrawide.exe" : "AstroBot-NonRT-Ultrawide.exe")
+                        : "AstroBot-NonRT.exe";
                 env["ASTROHYBRID_EXE"] = File.Exists(Path.Combine(runHybrid, exe)) ? exe : "AstroBot.exe";
             }
 
@@ -227,8 +231,8 @@ namespace AstroHybrid.App.Services
             }
 
             // Window size
-            // Indices 0..3 = 16:9, indices 4..5 = 21:9 ultrawide (#58)
-            var sizeValues = new[,] { { 1280, 720 }, { 1600, 900 }, { 1920, 1080 }, { 2560, 1440 }, { 2560, 1080 }, { 3440, 1440 } };
+            // Indices 0..3 = 16:9, indices 4..5 = 21:9, index 6 = 32:9 (#58)
+            var sizeValues = new[,] { { 1280, 720 }, { 1600, 900 }, { 1920, 1080 }, { 2560, 1440 }, { 2560, 1080 }, { 3440, 1440 }, { 5120, 1440 } };
             if (settings.Size >= 0 && settings.Size < sizeValues.GetLength(0))
             {
                 int width = sizeValues[settings.Size, 0];

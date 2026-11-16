@@ -21,7 +21,7 @@ namespace AstroHybrid.App.Models
         [JsonPropertyName("fullscreen")]
         public bool Fullscreen { get; set; } = true;
 
-        // Use the game's 21:9 render-space patch when the display is ultrawide.
+        // Use the game's ultrawide render-space patch when the display is 21:9 or 32:9.
         [JsonPropertyName("ultrawide")]
         public bool Ultrawide { get; set; } = false;
 

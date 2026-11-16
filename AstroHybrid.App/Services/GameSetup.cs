@@ -24,6 +24,8 @@ namespace AstroHybrid.App.Services
         public bool IntelConversion { get; set; }
         // 21:9 render-space patch (the original game constant is 16:9).
         public bool Ultrawide { get; set; }
+        // 32:9 render-space patch, used by the 5120x1440 preset.
+        public bool SuperUltrawide { get; set; }
         // Guest address of the game's frame-rate block (f64 60.0, f32 1/60, u64 16666 microseconds), found by
         // those values in AstroBot.exe; 0 = not found. Passed to the engine as ASTROHYBRID_GAME_STEP_ADDR.
         public ulong GameStepAddress { get; set; }
@@ -83,11 +85,17 @@ namespace AstroHybrid.App.Services
              "554889e5eb2a3ded6fbb07488d0dc47fc2074c8d052299e407be1f000000ba0100000031c0e8660eb6ff85c07402cd42488d3d3c54d20731c0e88235fbff909031c05dc3"),
         };
 
-        // Astro Bot's internal render aspect constant: 16:9 -> 2.3888889 (3440x1440 / 21:9-class displays).
-        // The patch is kept as a separate executable variant so 16:9 users retain the original framing.
+        // Astro Bot's internal render aspect constant: 16:9 -> 2.3888889 (21:9).
+        // Separate executable variants keep 16:9 and 32:9 users on their correct aspect ratio.
         private static readonly (string Name, string Original, string Patched)[] UltrawidePatches =
         {
             ("ultrawide render aspect", "398EE33F", "8EE31840"),
+        };
+
+        // 16:9 (1.7777778) -> 32:9 (3.5555556), IEEE-754 little-endian bytes.
+        private static readonly (string Name, string Original, string Patched)[] SuperUltrawidePatches =
+        {
+            ("super-ultrawide render aspect", "398EE33F", "398E6340"),
         };
 
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
@@ -158,6 +166,10 @@ namespace AstroHybrid.App.Services
             features.Ultrawide = ApplyAllOccurrences(ultrawide, UltrawidePatches, Log);
             if (features.Ultrawide)
                 WriteVariant(ultrawide, "AstroBot-Ultrawide");
+            var superUltrawide = (byte[])baseBytes.Clone();
+            features.SuperUltrawide = ApplyAllOccurrences(superUltrawide, SuperUltrawidePatches, Log);
+            if (features.SuperUltrawide)
+                WriteVariant(superUltrawide, "AstroBot-SuperUltrawide");
             var nonRt = (byte[])baseBytes.Clone();
             features.FasterLighting = ApplyAll(nonRt, FasterLightingPatches, Log);
             if (features.FasterLighting)
@@ -166,6 +178,9 @@ namespace AstroHybrid.App.Services
                 var nonRtUltrawide = (byte[])nonRt.Clone();
                 if (features.Ultrawide && ApplyAllOccurrences(nonRtUltrawide, UltrawidePatches, Log))
                     WriteVariant(nonRtUltrawide, "AstroBot-NonRT-Ultrawide");
+                var nonRtSuperUltrawide = (byte[])nonRt.Clone();
+                if (features.SuperUltrawide && ApplyAllOccurrences(nonRtSuperUltrawide, SuperUltrawidePatches, Log))
+                    WriteVariant(nonRtSuperUltrawide, "AstroBot-NonRT-SuperUltrawide");
                 var soft = (byte[])nonRt.Clone();
                 if (ApplyAll(soft, SoftAssertPatches, Log))
                     WriteVariant(soft, "AstroBot-NonRT-SoftAssert");

@@ -42,7 +42,7 @@
                                    Style="{StaticResource ModernCheckBoxStyle}"
                                    VerticalAlignment="Center" Margin="0,10,0,0"/>
 
-                        <CheckBox Grid.Row="2" Grid.Column="1" Content="Ultrawide 21:9 rendering"
+                        <CheckBox Grid.Row="2" Grid.Column="1" Content="Ultrawide 21:9 / 32:9 rendering"
                                    IsChecked="{Binding Ultrawide}"
                                    Style="{StaticResource ModernCheckBoxStyle}"
                                    VerticalAlignment="Center" Margin="0,10,0,0"/>
