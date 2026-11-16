@@ -150,7 +150,9 @@ namespace AstroHybrid.App.Services
 
             Report(80, "Applying the faster-lighting patch...");
             var baseBytes = File.ReadAllBytes(Path.Combine(_runHybrid, "AstroBot.exe"));
-            if (ApplyClothPhysicsPatches(baseBytes, Log))
+            bool clothPatched = ApplyClothPhysicsPatches(baseBytes, Log);
+            bool cmdbufPatched = ApplyCommandBufferPatches(baseBytes, Log);
+            if (clothPatched || cmdbufPatched)
                 File.WriteAllBytes(Path.Combine(_runHybrid, "AstroBot.exe"), baseBytes);
             var ultrawide = (byte[])baseBytes.Clone();
             features.Ultrawide = ApplyAllOccurrences(ultrawide, UltrawidePatches, Log);
@@ -182,6 +184,8 @@ namespace AstroHybrid.App.Services
 
             File.WriteAllText(Path.Combine(_runHybrid, GameFeatures.FileName),
                 JsonSerializer.Serialize(features, new JsonSerializerOptions { WriteIndented = true }));
+            InstallationManager.SaveManifest(_root,
+                InstallationManager.CreateManifest(_root, dump, version, titleId, features.SetupAt));
             Report(100, "Done.");
             return features;
         }
@@ -418,6 +422,28 @@ namespace AstroHybrid.App.Services
 
             log($"cloth physics 60Hz clamp applied (cloth1=0x{cloth1CallOff:x}, cloth2=0x{cloth2CallOff:x}, apCloth=0x{apClothStoreOff:x})");
             return true;
+        }
+
+        // Prevent worker command buffer exhaustion and NULL memcpy crashes in heavy scenes (#47, #50, #6).
+        // Raises the 5-worker command buffer MiB table (7,7,4,4,6 -> 8,8,8,8,8) and skips memcpy when dst is NULL.
+        // Note: Do NOT patch 0x471644 (guard0); its eb 37 jump is shared by non-null allocations and skipping it drops command buffer copies.
+        private static bool ApplyCommandBufferPatches(byte[] data, Action<string> log)
+        {
+            return ApplyAll(data, new[]
+            {
+                ("cmdbuf_worker_mib_table",
+                    "0700000007000000040000000400000006000000100020003000400008000000",
+                    "0800000008000000080000000800000008000000100020003000400008000000"),
+                ("cmdbuf_null_memcpy_guard1",
+                    "4531FFEB0F49C1E4024D29E74983E7FC4D897E18488B7318",
+                    "4531FFEB2649C1E4024D29E74983E7FC4D897E18488B7318"),
+                ("cmdbuf_null_memcpy_guard2",
+                    "4531FFEB0F49C1E4024D29E74983E7FC4D897E18488B7328",
+                    "4531FFEB5849C1E4024D29E74983E7FC4D897E18488B7328"),
+                ("cmdbuf_null_memcpy_guard3",
+                    "4531FFEB134A8D04A5000000004929C74983E7FC4D897E18488B7320",
+                    "4531FFEB634A8D04A5000000004929C74983E7FC4D897E18488B7320"),
+            }, log);
         }
 
         private static int FindUniqueCallTo(byte[] data, byte[] prefix, byte[] suffix, int targetOffset, int startOff, int endOff, out int count)

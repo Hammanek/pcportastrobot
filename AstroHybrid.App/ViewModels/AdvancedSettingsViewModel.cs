@@ -207,6 +207,20 @@ namespace AstroHybrid.App.ViewModels
             }
         }
 
+        public bool SkipIntro
+        {
+            get => _mainViewModel.Settings.SkipIntro;
+            set
+            {
+                if (!Equals(_mainViewModel.Settings.SkipIntro, value))
+                {
+                    _mainViewModel.Settings.SkipIntro = value;
+                    OnPropertyChanged();
+                    _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.Settings));
+                }
+            }
+        }
+
         // Experimental Features
         public bool IsExperimentalExpanded { get; set; } = false;
 
@@ -230,6 +244,8 @@ namespace AstroHybrid.App.ViewModels
         public string DualSenseWirelessSpeakerNote => "Routes the DualSense speaker audio over Bluetooth HID. Requires a Bluetooth-connected DualSense; wired controllers use USB audio instead.";
 
         public string DualSenseWirelessHapticsNote => "Routes DualSense haptic feedback over Bluetooth HID. Requires a Bluetooth-connected DualSense; wired controllers use USB audio instead.";
+
+        public string SkipIntroNote => "Skips the opening PlayStation Studios and Team Asobi intro videos (-skipIntro).";
 
         public string ExperimentalWarning => "Experimental features may cause instability. Only enable if you understand the risks and are prepared to debug issues.";
     }

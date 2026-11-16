@@ -113,6 +113,11 @@
                                   IsChecked="{Binding DualSenseWirelessHaptics}"
                                   Style="{StaticResource ModernCheckBoxStyle}"/>
                         <TextBlock Text="{Binding DualSenseWirelessHapticsNote}" Style="{StaticResource MutedTextStyle}" Margin="28,4,0,10" TextWrapping="Wrap"/>
+
+                        <CheckBox Content="Skip Intro Videos (-skipIntro)"
+                                  IsChecked="{Binding SkipIntro}"
+                                  Style="{StaticResource ModernCheckBoxStyle}"/>
+                        <TextBlock Text="{Binding SkipIntroNote}" Style="{StaticResource MutedTextStyle}" Margin="28,4,0,10" TextWrapping="Wrap"/>
                     </StackPanel>
                 </StackPanel>
             </Border>

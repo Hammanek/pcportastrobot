@@ -64,9 +64,11 @@ if not defined ASTROHYBRID_PRIORITY set ASTROHYBRID_PRIORITY=abovenormal
 if not defined KYTY_GPU_WIDTH set KYTY_GPU_WIDTH=1920
 if not defined KYTY_GPU_HEIGHT set KYTY_GPU_HEIGHT=1080
 if not exist "%ROOT%Logs" mkdir "%ROOT%Logs"
+set "ASTROHYBRID_EXTRA_ARGS="
+if "%ASTROHYBRID_SKIP_INTRO%"=="1" set "ASTROHYBRID_EXTRA_ARGS=-skipIntro"
 cd /d "%ROOT%Build\RunHybrid"
 echo Logging to Logs\hybrid-run.out.log / Logs\hybrid-run.err.log
-start "" /b /wait /%ASTROHYBRID_PRIORITY% "%ROOT%Build\RunHybrid\%ASTROHYBRID_EXE%" %* 1>"%ROOT%Logs\hybrid-run.out.log" 2>"%ROOT%Logs\hybrid-run.err.log"
+start "" /b /wait /%ASTROHYBRID_PRIORITY% "%ROOT%Build\RunHybrid\%ASTROHYBRID_EXE%" %ASTROHYBRID_EXTRA_ARGS% %* 1>"%ROOT%Logs\hybrid-run.out.log" 2>"%ROOT%Logs\hybrid-run.err.log"
 set CODE=%ERRORLEVEL%
 echo AstroBot.exe exited with %CODE%
 exit /b %CODE%

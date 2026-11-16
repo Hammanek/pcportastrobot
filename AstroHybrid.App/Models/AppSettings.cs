@@ -119,6 +119,9 @@ namespace AstroHybrid.App.Models
         [JsonPropertyName("dsWirelessHaptics")]
         public bool DualSenseWirelessHaptics { get; set; } = true;
 
+        [JsonPropertyName("skipIntro")]
+        public bool SkipIntro { get; set; } = false;
+
         // Set by the setup wizard: the main window picks the best settings for this PC once.
         [JsonPropertyName("applyBestOnStart")]
         public bool ApplyBestOnStart { get; set; } = false;

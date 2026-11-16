@@ -227,11 +227,19 @@ namespace AstroHybrid.App.Services
             }
 
             // Window size
-            var sizeValues = new[,] { { 1280, 720 }, { 1600, 900 }, { 1920, 1080 }, { 2560, 1440 } };
+            // Indices 0..3 = 16:9, indices 4..5 = 21:9 ultrawide (#58)
+            var sizeValues = new[,] { { 1280, 720 }, { 1600, 900 }, { 1920, 1080 }, { 2560, 1440 }, { 2560, 1080 }, { 3440, 1440 } };
             if (settings.Size >= 0 && settings.Size < sizeValues.GetLength(0))
             {
-                env["KYTY_GPU_WIDTH"] = sizeValues[settings.Size, 0].ToString();
-                env["KYTY_GPU_HEIGHT"] = sizeValues[settings.Size, 1].ToString();
+                int width = sizeValues[settings.Size, 0];
+                int height = sizeValues[settings.Size, 1];
+                if (settings.Ultrawide && settings.Size < 4)
+                {
+                    width = settings.Size == 3 ? 3440 : 2560;
+                    height = settings.Size == 3 ? 1440 : 1080;
+                }
+                env["KYTY_GPU_WIDTH"] = width.ToString();
+                env["KYTY_GPU_HEIGHT"] = height.ToString();
             }
 
             // Fullscreen
@@ -317,8 +325,8 @@ namespace AstroHybrid.App.Services
             int language = settings.Language >= 0 && settings.Language <= 30 ? settings.Language : WindowsLanguage();
             env["ANYPS5_LANGUAGE"] = language.ToString();
 
-            // VSync: Vulkan FIFO presentation (the default is immediate presentation).
-            if (settings.VSync) env["KYTY_GPU_PRESENT_MODE"] = "Fifo";
+            // VSync: Vulkan FIFO presentation (the default is immediate presentation; skipped when DLSS Frame Generation is active).
+            if (settings.VSync && settings.FrameGenMode == 0) env["KYTY_GPU_PRESENT_MODE"] = "Fifo";
 
             // Advanced page: the variables Run-AstroHybrid.bat reads (it keeps its defaults when unset).
             if (settings.HangWatchdog) env["ASTROHYBRID_HANG_WATCHDOG"] = "1";
@@ -329,6 +337,7 @@ namespace AstroHybrid.App.Services
             if (settings.CpPriority == 1 || settings.CpPriority == 2) env["KYTY_CP_PRIORITY"] = settings.CpPriority.ToString();
             env["ASTROHYBRID_PAD_MOTION"] = settings.MotionControls ? "1" : "0";
             if (!settings.TriggerState) env["APS5_PAD_TRIGGER_STATE"] = "0";
+            if (settings.SkipIntro) env["ASTROHYBRID_SKIP_INTRO"] = "1";
 
             // Cloth/blanket/bubble stability (#30, #35): keep commit epoch fast path off and enable buffer range fixes.
             env["ASTROHYBRID_COMMIT_EPOCH_FASTPATH"] = "0";

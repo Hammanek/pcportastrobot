@@ -17,7 +17,8 @@ namespace AstroHybrid.App.ViewModels
         }
 
         // Resolution
-        public string[] ResolutionLabels => new[] { "1280 x 720", "1600 x 900", "1920 x 1080", "2560 x 1440" };
+        // Indices 0..3 = 16:9, indices 4..5 = 21:9 ultrawide (#58)
+        public string[] ResolutionLabels => new[] { "1280 x 720", "1600 x 900", "1920 x 1080", "2560 x 1440", "2560 x 1080 (21:9)", "3440 x 1440 (21:9)" };
 
         public int ResolutionIndex
         {
@@ -122,7 +123,7 @@ namespace AstroHybrid.App.ViewModels
             }
         }
 
-        // Ultrawide render-space patch (issue #29/#33).
+        // Ultrawide render-space patch (issue #29/#33/#58).
         public bool Ultrawide
         {
             get => _mainViewModel.Settings.Ultrawide;
@@ -131,13 +132,22 @@ namespace AstroHybrid.App.ViewModels
                 if (_mainViewModel.Settings.Ultrawide != value)
                 {
                     _mainViewModel.Settings.Ultrawide = value;
+                    if (value && _mainViewModel.Settings.Size < 4)
+                    {
+                        _mainViewModel.Settings.Size = _mainViewModel.Settings.Size == 3 ? 5 : 4;
+                    }
+                    else if (!value && _mainViewModel.Settings.Size >= 4)
+                    {
+                        _mainViewModel.Settings.Size = _mainViewModel.Settings.Size == 5 ? 3 : 2;
+                    }
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(ResolutionIndex));
                     _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.Settings));
                 }
             }
         }
 
-        public string UltrawideNote => "Uses the 21:9 game patch when the generated ultrawide executable is available; 16:9 remains unchanged.";
+        public string UltrawideNote => "Uses the 21:9 game patch and 21:9 window dimensions (2560x1080 / 3440x1440) when enabled; 16:9 remains unchanged.";
 
         // Ray Tracing / Lighting mode (0 = OFF / Non-RT, 1 = ON / Ray Tracing)
         public string[] RayTracingLabels => new[] { "OFF - Faster lighting (Non-RT, recommended)", "ON - Ray Tracing (Original lighting)" };
