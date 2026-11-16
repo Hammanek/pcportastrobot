@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
@@ -296,7 +298,7 @@ namespace AstroHybrid.App.Services
                 }
                 Directory.CreateDirectory(extractDir);
 
-                ZipFile.ExtractToDirectory(tempFile, extractDir, true);
+                ZipFile.ExtractToDirectory(tempFile, extractDir);
 
                 state.DownloadStatus = "Installing update...";
                 StateChanged?.Invoke(state);
@@ -432,10 +434,13 @@ namespace AstroHybrid.App.Services
 
         private async Task<string> ComputeSha256Async(string filePath)
         {
-            using var sha256 = SHA256.Create();
-            using var stream = File.OpenRead(filePath);
-            var hash = await sha256.ComputeHashAsync(stream);
-            return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
+            return await Task.Run(() =>
+            {
+                using var sha256 = SHA256.Create();
+                using var stream = File.OpenRead(filePath);
+                var hash = sha256.ComputeHash(stream);
+                return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
+            });
         }
 
         public void IgnoreVersion(string version)

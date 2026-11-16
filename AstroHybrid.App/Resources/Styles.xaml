@@ -477,8 +477,6 @@
         <Setter Property="FontSize" Value="10"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-        <Setter Property="TextTransform" Value="Uppercase"/>
-        <Setter Property="LetterSpacing" Value="0.5"/>
     </Style>
 
     <Style TargetType="TextBlock" x:Key="VersionBadgeValueStyle">
@@ -500,8 +498,6 @@
         <Setter Property="FontSize" Value="11"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-        <Setter Property="TextTransform" Value="Uppercase"/>
-        <Setter Property="LetterSpacing" Value="0.5"/>
     </Style>
 
     <Style TargetType="TextBlock" x:Key="StatValueStyle">
