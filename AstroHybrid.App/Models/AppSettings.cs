@@ -129,6 +129,16 @@ namespace AstroHybrid.App.Models
         [JsonPropertyName("lastLaunched")]
         public DateTime? LastLaunched { get; set; }
 
+        // Update settings
+        [JsonPropertyName("lastUpdateCheck")]
+        public DateTime? LastUpdateCheck { get; set; }
+
+        [JsonPropertyName("ignoredUpdateVersion")]
+        public string? IgnoredUpdateVersion { get; set; }
+
+        [JsonPropertyName("autoCheckUpdates")]
+        public bool AutoCheckUpdates { get; set; } = true;
+
         // Vibration strength the game gets: the stored percent, or the old preset index mapped to percent.
         [JsonIgnore]
         public int EffectiveRumblePercent => RumbleSetting.EffectivePercent(RumblePercent, Rumble);

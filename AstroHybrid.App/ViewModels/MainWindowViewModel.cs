@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
+using System.Diagnostics;
 using AstroHybrid.App.Models;
 using AstroHybrid.App.Services;
 
@@ -39,6 +40,11 @@ namespace AstroHybrid.App.ViewModels
         private bool _isLoading;
         private string _statusMessage = "";
 
+        // Update service
+        private UpdateService? _updateService;
+        private UpdateState _updateState = new();
+        private bool _showUpdateNotification = false;
+
         public static MainWindowViewModel? Current { get; private set; }
 
         public MainWindowViewModel(string rootDirectory)
@@ -50,9 +56,19 @@ namespace AstroHybrid.App.ViewModels
             _hardwareDetector = new HardwareDetector();
             _controllerDetector = new ControllerDetector();
             _launcherService = new LauncherService(rootDirectory);
+            _updateService = new UpdateService(rootDirectory);
 
             _installationManager.StatusChanged += msg => StatusMessage = msg;
             _installationManager.ProgressChanged += pct => { /* could show progress */ };
+
+            _updateService.StateChanged += OnUpdateStateChanged;
+            _updateService.DownloadProgressChanged += (progress, status) =>
+            {
+                UpdateState.DownloadProgress = progress;
+                UpdateState.DownloadStatus = status;
+                OnPropertyChanged(nameof(UpdateState));
+            };
+            _updateService.StatusChanged += msg => StatusMessage = msg;
 
             NavigateCommand = new RelayCommand<LauncherPage>(page => CurrentPage = page);
             LaunchGameCommand = new RelayCommand(async () => await LaunchGameAsync(), () => !IsLaunching);
@@ -64,6 +80,12 @@ namespace AstroHybrid.App.ViewModels
             OpenLogFolderCommand = new RelayCommand(() => _installationManager.OpenLogFolder());
             ChangeInstallLocationCommand = new RelayCommand(async () => await ChangeInstallLocationAsync());
             UninstallCommand = new RelayCommand(async () => await UninstallAsync());
+
+            // Update commands
+            CheckForUpdatesCommand = new RelayCommand(async () => await CheckForUpdatesAsync(true));
+            DownloadUpdateCommand = new RelayCommand(async () => await DownloadAndInstallUpdateAsync(), () => UpdateState.UpdateAvailable && !UpdateState.IsDownloading && !UpdateState.IsInstalling);
+            IgnoreUpdateCommand = new RelayCommand(IgnoreUpdate);
+            DismissUpdateNotificationCommand = new RelayCommand(() => ShowUpdateNotification = false);
 
             _ = InitializeAsync();
         }
@@ -113,6 +135,18 @@ namespace AstroHybrid.App.ViewModels
             set => SetProperty(ref _selectedController, value);
         }
 
+        public UpdateState UpdateState
+        {
+            get => _updateState;
+            set => SetProperty(ref _updateState, value);
+        }
+
+        public bool ShowUpdateNotification
+        {
+            get => _showUpdateNotification;
+            set => SetProperty(ref _showUpdateNotification, value);
+        }
+
         public bool IsLaunching
         {
             get => _isLaunching;
@@ -141,6 +175,12 @@ namespace AstroHybrid.App.ViewModels
         public ICommand OpenLogFolderCommand { get; }
         public ICommand ChangeInstallLocationCommand { get; }
         public ICommand UninstallCommand { get; }
+
+        // Update commands
+        public ICommand CheckForUpdatesCommand { get; }
+        public ICommand DownloadUpdateCommand { get; }
+        public ICommand IgnoreUpdateCommand { get; }
+        public ICommand DismissUpdateNotificationCommand { get; }
 
         private async Task InitializeAsync()
         {
@@ -207,6 +247,16 @@ namespace AstroHybrid.App.ViewModels
             finally
             {
                 IsLoading = false;
+            }
+
+            // Auto-check for updates in background (after UI is responsive)
+            if (Settings.AutoCheckUpdates)
+            {
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(3000); // Small delay to let UI settle
+                    await _updateService?.CheckForUpdatesAsync(false);
+                });
             }
         }
 
@@ -478,6 +528,103 @@ namespace AstroHybrid.App.ViewModels
             }
 
             return best;
+        }
+
+        // Update service event handlers
+        private void OnUpdateStateChanged(UpdateState state)
+        {
+            UpdateState = state;
+
+            // Show notification when update becomes available
+            if (state.UpdateAvailable && state.LatestUpdate != null && !state.IsChecking)
+            {
+                // Don't show if user dismissed or if we're currently downloading/installing
+                if (!ShowUpdateNotification && !state.IsDownloading && !state.IsInstalling)
+                {
+                    ShowUpdateNotification = true;
+                }
+            }
+            else if (!state.UpdateAvailable)
+            {
+                ShowUpdateNotification = false;
+            }
+
+            // Refresh command states
+            OnPropertyChanged(nameof(UpdateState));
+            (DownloadUpdateCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        }
+
+        private async Task CheckForUpdatesAsync(bool forceCheck = false)
+        {
+            if (_updateService == null) return;
+
+            if (!forceCheck && Settings.AutoCheckUpdates == false)
+            {
+                return;
+            }
+
+            await _updateService.CheckForUpdatesAsync(forceCheck);
+        }
+
+        private async Task DownloadAndInstallUpdateAsync()
+        {
+            if (_updateService == null || UpdateState.LatestUpdate == null) return;
+
+            var updateInfo = UpdateState.LatestUpdate;
+
+            // Download the update
+            var downloadSuccess = await _updateService.DownloadUpdateAsync(updateInfo);
+            if (!downloadSuccess)
+            {
+                return;
+            }
+
+            // Install the update
+            var installSuccess = await _updateService.InstallUpdateAsync(updateInfo);
+            if (installSuccess)
+            {
+                ShowUpdateNotification = false;
+                UpdateState.UpdateAvailable = false;
+                UpdateState.LatestUpdate = null;
+
+                // Clear ignored version since we updated
+                var settings = _settingsManager.Load();
+                settings.IgnoredUpdateVersion = null;
+                _settingsManager.Save(settings);
+
+                // Restart the launcher
+                RestartLauncher();
+            }
+        }
+
+        private void IgnoreUpdate()
+        {
+            if (UpdateState.LatestUpdate != null)
+            {
+                _updateService?.IgnoreVersion(UpdateState.LatestUpdate.Version);
+                ShowUpdateNotification = false;
+                UpdateState.IgnoredVersion = UpdateState.LatestUpdate.Version;
+            }
+        }
+
+        private void RestartLauncher()
+        {
+            try
+            {
+                var exePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                var psi = new ProcessStartInfo
+                {
+                    FileName = exePath,
+                    UseShellExecute = true
+                };
+                Process.Start(psi);
+                System.Windows.Application.Current.Shutdown();
+            }
+            catch
+            {
+                // Fallback: just close
+                System.Windows.Application.Current.Shutdown();
+            }
         }
     }
 }

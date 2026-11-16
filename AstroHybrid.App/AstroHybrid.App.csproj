@@ -103,6 +103,7 @@
     <Compile Include="Models\GameInfo.cs" />
     <Compile Include="Models\HardwareInfo.cs" />
     <Compile Include="Models\InstallationState.cs" />
+    <Compile Include="Models\UpdateInfo.cs" />
     <Compile Include="Services\SettingsManager.cs" />
     <Compile Include="Services\GameValidator.cs" />
     <Compile Include="Services\BuildManager.cs" />
@@ -110,6 +111,7 @@
     <Compile Include="Services\ControllerDetector.cs" />
     <Compile Include="Services\InstallationManager.cs" />
     <Compile Include="Services\LauncherService.cs" />
+    <Compile Include="Services\UpdateService.cs" />
     <Compile Include="Services\SelfUnwrapper.cs" />
     <Compile Include="Services\GameSetup.cs" />
     <Compile Include="Services\RumbleSetting.cs" />
