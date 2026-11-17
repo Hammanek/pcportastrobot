@@ -208,21 +208,35 @@ namespace AstroHybrid.App.Services
             var features = GameFeatures.Load(runHybrid);
             // Prefer the soft-assert variant so a command-buffer overflow follows the
             // engine's failure path instead of crashing in command_buffer_writer (issue #25).
-            bool useUltrawide = settings.Ultrawide || settings.Size >= 4;
-            bool useSuperUltrawide = settings.Size == 6;
-            var lightingExes = useUltrawide && useSuperUltrawide
-                ? new[] { "AstroBot-NonRT-SuperUltrawide-SoftAssert.exe", "AstroBot-SuperUltrawide.exe" }
+            bool useUltrawide = settings.Ultrawide || settings.IsUltrawideSize;
+            bool useSuperUltrawide = settings.IsSuperUltrawideSize;
+            var candidates = useUltrawide && useSuperUltrawide
+                ? (settings.Lighting == 0
+                    ? new[] { "AstroBot-NonRT-SuperUltrawide-SoftAssert.exe", "AstroBot-NonRT-SuperUltrawide.exe", "AstroBot-SuperUltrawide.exe", "AstroBot-NonRT-SoftAssert.exe", "AstroBot-NonRT.exe", "AstroBot.exe" }
+                    : new[] { "AstroBot-SuperUltrawide.exe", "AstroBot.exe" })
                 : useUltrawide
-                ? new[] { "AstroBot-NonRT-Ultrawide-SoftAssert.exe", "AstroBot-Ultrawide.exe" }
-                : new[] { "AstroBot-NonRT-SoftAssert.exe", "AstroBot.exe" };
-            if (settings.Lighting >= 0 && settings.Lighting < lightingExes.Length)
+                ? (settings.Lighting == 0
+                    ? new[] { "AstroBot-NonRT-Ultrawide-SoftAssert.exe", "AstroBot-NonRT-Ultrawide.exe", "AstroBot-Ultrawide.exe", "AstroBot-NonRT-SoftAssert.exe", "AstroBot-NonRT.exe", "AstroBot.exe" }
+                    : new[] { "AstroBot-Ultrawide.exe", "AstroBot.exe" })
+                : (settings.Lighting == 0
+                    ? new[] { "AstroBot-NonRT-SoftAssert.exe", "AstroBot-NonRT.exe", "AstroBot.exe" }
+                    : new[] { "AstroBot.exe" });
+
+            if (!File.Exists(Path.Combine(runHybrid, candidates[0])))
+                new GameSetup(_rootDirectory).EnsureVariantExecutables();
+
+            if (settings.Lighting >= 0 && settings.Lighting <= 1)
             {
-                var exe = lightingExes[settings.Lighting];
-                if (settings.Lighting == 0 && !File.Exists(Path.Combine(runHybrid, exe)))
-                    exe = useUltrawide
-                        ? (useSuperUltrawide ? "AstroBot-NonRT-SuperUltrawide.exe" : "AstroBot-NonRT-Ultrawide.exe")
-                        : "AstroBot-NonRT.exe";
-                env["ASTROHYBRID_EXE"] = File.Exists(Path.Combine(runHybrid, exe)) ? exe : "AstroBot.exe";
+                string chosen = "AstroBot.exe";
+                foreach (var candidate in candidates)
+                {
+                    if (File.Exists(Path.Combine(runHybrid, candidate)))
+                    {
+                        chosen = candidate;
+                        break;
+                    }
+                }
+                env["ASTROHYBRID_EXE"] = chosen;
             }
 
             // FPS limit
@@ -233,13 +247,13 @@ namespace AstroHybrid.App.Services
             }
 
             // Window size
-            // Indices 0..3 = 16:9, indices 4..5 = 21:9, index 6 = 32:9 (#58)
-            var sizeValues = new[,] { { 1280, 720 }, { 1600, 900 }, { 1920, 1080 }, { 2560, 1440 }, { 2560, 1080 }, { 3440, 1440 }, { 5120, 1440 } };
-            if (settings.Size >= 0 && settings.Size < sizeValues.GetLength(0))
+            // Indices 0..3 = 16:9, indices 4,5,8 = 21:9, indices 6,7 = 32:9 (#58)
+            if (settings.Size >= 0 && settings.Size < AppSettings.ResolutionPresets.Length)
             {
-                int width = sizeValues[settings.Size, 0];
-                int height = sizeValues[settings.Size, 1];
-                if (settings.Ultrawide && settings.Size < 4)
+                var preset = AppSettings.ResolutionPresets[settings.Size];
+                int width = preset.Width;
+                int height = preset.Height;
+                if (settings.Ultrawide && !settings.IsUltrawideSize)
                 {
                     width = settings.Size == 3 ? 3440 : 2560;
                     height = settings.Size == 3 ? 1440 : 1080;

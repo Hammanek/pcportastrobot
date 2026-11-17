@@ -148,12 +148,34 @@ namespace AstroHybrid.App.Models
 
         // Clamps out-of-range indices, syncs Ultrawide with 21:9/32:9 size presets, and turns off
         // hardware-gated NVIDIA options on systems that do not support them.
+        public static readonly (int Width, int Height, string Label, string ShortLabel, int AspectRatio)[] ResolutionPresets =
+        {
+            (1280, 720,  "1280 x 720",         "1280x720",  16),
+            (1600, 900,  "1600 x 900",         "1600x900",  16),
+            (1920, 1080, "1920 x 1080",        "1920x1080", 16),
+            (2560, 1440, "2560 x 1440",        "2560x1440", 16),
+            (2560, 1080, "2560 x 1080 (21:9)", "2560x1080", 21),
+            (3440, 1440, "3440 x 1440 (21:9)", "3440x1440", 21),
+            (5120, 1440, "5120 x 1440 (32:9)", "5120x1440", 32),
+            (3840, 1080, "3840 x 1080 (32:9)", "3840x1080", 32),
+            (5120, 2160, "5120 x 2160 (21:9)", "5120x2160", 21),
+        };
+
+        public static int GetAspectRatio(int size) =>
+            size >= 0 && size < ResolutionPresets.Length ? ResolutionPresets[size].AspectRatio : 16;
+
+        [JsonIgnore]
+        public bool IsUltrawideSize => Size >= 4 && Size < ResolutionPresets.Length;
+
+        [JsonIgnore]
+        public bool IsSuperUltrawideSize => GetAspectRatio(Size) == 32;
+
         public void Sanitize(bool supportsDlss = true, bool supportsFrameGeneration = true, bool supportsReflex = true)
         {
             if (Lighting < 0 || Lighting > 1) Lighting = 0;
             if (Fps < 0 || Fps > 6) Fps = 0;
             if (Speed < 0 || Speed > 5) Speed = 0;
-            if (Size < 0 || Size > 6) Size = 2;
+            if (Size < 0 || Size >= ResolutionPresets.Length) Size = 2;
             if (Overlay < 0 || Overlay > 3) Overlay = 0;
             if (Upscale < 0 || Upscale > 1) Upscale = 0;
             if (FrameGenMode < 0 || FrameGenMode > 4) FrameGenMode = 0;
@@ -163,7 +185,7 @@ namespace AstroHybrid.App.Models
             if (Priority != "normal" && Priority != "abovenormal" && Priority != "high")
                 Priority = "abovenormal";
 
-            if (Size >= 4) Ultrawide = true;
+            if (IsUltrawideSize) Ultrawide = true;
             else if (Ultrawide) Size = Size == 3 ? 5 : 4;
 
             if (!supportsDlss) Upscale = 0;

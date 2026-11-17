@@ -343,6 +343,7 @@ namespace AstroHybrid.App.ViewModels
             Settings.Fps = 0; // 30 FPS steady
             Settings.Speed = 0; // 100% real-time
             Settings.Size = best.Size;
+            Settings.Ultrawide = best.Ultrawide;
             Settings.Fullscreen = true;
             Settings.Upscale = best.Upscale;
             Settings.FrameGenMode = best.FrameGen;
@@ -531,16 +532,32 @@ namespace AstroHybrid.App.ViewModels
         }
 
         // Best settings logic (ported from AstroBotLauncher.cs)
-        private (int Size, int Upscale, int FrameGen, int Target, bool LowLatency) PickBestSettings(HardwareInfo pc)
+        private (int Size, bool Ultrawide, int Upscale, int FrameGen, int Target, bool LowLatency) PickBestSettings(HardwareInfo pc)
         {
-            var best = (Size: 2, Upscale: 0, FrameGen: 0, Target: 2, LowLatency: false);
+            var best = (Size: 2, Ultrawide: false, Upscale: 0, FrameGen: 0, Target: 2, LowLatency: false);
 
-            for (int i = 0; i < 4; i++)
+            var displayAspect = pc.ScreenHeight > 0 ? (double)pc.ScreenWidth / pc.ScreenHeight : 16.0 / 9.0;
+            if (displayAspect >= 3.2)
             {
-                var widths = new[] { 1280, 1600, 1920, 2560 };
-                var heights = new[] { 720, 900, 1080, 1440 };
-                if (widths[i] <= pc.ScreenWidth && heights[i] <= pc.ScreenHeight)
-                    best.Size = i;
+                best.Ultrawide = true;
+                best.Size = pc.ScreenWidth >= 5120 && pc.ScreenHeight >= 1440 ? 6
+                          : pc.ScreenWidth >= 3840 && pc.ScreenHeight >= 1080 ? 7 : 4;
+            }
+            else if (displayAspect >= 2.1)
+            {
+                best.Ultrawide = true;
+                best.Size = pc.ScreenWidth >= 5120 && pc.ScreenHeight >= 2160 ? 8
+                          : pc.ScreenWidth >= 3440 && pc.ScreenHeight >= 1440 ? 5 : 4;
+            }
+            else
+            {
+                for (int i = 0; i < 4; i++)
+                {
+                    var widths = new[] { 1280, 1600, 1920, 2560 };
+                    var heights = new[] { 720, 900, 1080, 1440 };
+                    if (widths[i] <= pc.ScreenWidth && heights[i] <= pc.ScreenHeight)
+                        best.Size = i;
+                }
             }
 
             if (pc.RtxSeries >= 20)

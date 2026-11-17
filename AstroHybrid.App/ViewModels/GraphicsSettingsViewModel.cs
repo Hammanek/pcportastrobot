@@ -17,8 +17,8 @@ namespace AstroHybrid.App.ViewModels
         }
 
         // Resolution
-        // Indices 0..3 = 16:9, indices 4..5 = 21:9, index 6 = 32:9 (#58)
-        public string[] ResolutionLabels => new[] { "1280 x 720", "1600 x 900", "1920 x 1080", "2560 x 1440", "2560 x 1080 (21:9)", "3440 x 1440 (21:9)", "5120 x 1440 (32:9)" };
+        // Indices 0..3 = 16:9, indices 4,5,8 = 21:9, indices 6,7 = 32:9 (#58)
+        public string[] ResolutionLabels => AppSettings.ResolutionPresets.Select(p => p.Label).ToArray();
 
         public int ResolutionIndex
         {
@@ -144,7 +144,7 @@ namespace AstroHybrid.App.ViewModels
                     }
                     else if (!value && _mainViewModel.Settings.Size >= 4)
                     {
-                        _mainViewModel.Settings.Size = _mainViewModel.Settings.Size == 5 || _mainViewModel.Settings.Size == 6 ? 3 : 2;
+                        _mainViewModel.Settings.Size = _mainViewModel.Settings.Size == 5 || _mainViewModel.Settings.Size == 6 || _mainViewModel.Settings.Size == 8 ? 3 : 2;
                     }
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(ResolutionIndex));
@@ -153,7 +153,7 @@ namespace AstroHybrid.App.ViewModels
             }
         }
 
-        public string UltrawideNote => "Uses the matching 21:9 or 32:9 game patch and window dimensions (2560x1080 / 3440x1440 / 5120x1440) when enabled; 16:9 remains unchanged.";
+        public string UltrawideNote => "Uses the matching 21:9 or 32:9 game patch and window dimensions (2560x1080 / 3440x1440 / 5120x2160 / 3840x1080 / 5120x1440) when enabled; 16:9 remains unchanged.";
 
         // Ray Tracing / Lighting mode (0 = OFF / Non-RT, 1 = ON / Ray Tracing)
         public string[] RayTracingLabels => new[] { "OFF - Faster lighting (Non-RT, recommended)", "ON - Ray Tracing (Original lighting)" };

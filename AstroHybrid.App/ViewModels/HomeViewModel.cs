@@ -57,18 +57,10 @@ namespace AstroHybrid.App.ViewModels
         {
             get
             {
-                var labels = new[]
-                {
-                    "1280 × 720",
-                    "1600 × 900",
-                    "1920 × 1080",
-                    "2560 × 1440",
-                    "2560 × 1080 (21:9)",
-                    "3440 × 1440 (21:9)",
-                    "5120 × 1440 (32:9)"
-                };
                 int idx = _mainViewModel.Settings.Size;
-                return idx >= 0 && idx < labels.Length ? labels[idx] : "1920 × 1080";
+                return idx >= 0 && idx < AppSettings.ResolutionPresets.Length
+                    ? AppSettings.ResolutionPresets[idx].Label.Replace(" x ", " × ")
+                    : "1920 × 1080";
             }
         }
 
@@ -115,12 +107,12 @@ namespace AstroHybrid.App.ViewModels
         {
             var parts = new System.Collections.Generic.List<string>();
 
-            var sizeLabels = new[] { "1280x720", "1600x900", "1920x1080", "2560x1440", "2560x1080", "3440x1440", "5120x1440" };
-            if (_mainViewModel.Settings.Size >= 0 && _mainViewModel.Settings.Size < sizeLabels.Length)
-                parts.Add(sizeLabels[_mainViewModel.Settings.Size]);
+            int idx = _mainViewModel.Settings.Size;
+            if (idx >= 0 && idx < AppSettings.ResolutionPresets.Length)
+                parts.Add(AppSettings.ResolutionPresets[idx].ShortLabel);
 
             if (_mainViewModel.Settings.Ultrawide)
-                parts.Add(_mainViewModel.Settings.Size == 6 ? "32:9 Ultrawide" : "21:9 Ultrawide");
+                parts.Add(_mainViewModel.Settings.IsSuperUltrawideSize ? "32:9 Ultrawide" : "21:9 Ultrawide");
 
             parts.Add(_mainViewModel.Settings.Fullscreen ? "Fullscreen" : "Windowed");
 
