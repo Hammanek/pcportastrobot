@@ -318,10 +318,6 @@ namespace AstroHybrid.App.Services
             env["ASTROHYBRID_RUMBLE_SCALE"] = rumblePercent.ToString();
             env["ASTROHYBRID_RUMBLE_SWITCH_FLOOR"] = RumbleSetting.SwitchFloor(rumblePercent, settings.SwitchBoost).ToString();
 
-            // Wireless DualSense features (Bluetooth HID audio/haptics) - issue #34
-            env["ASTROHYBRID_DS_WIRELESS_SPEAKER"] = settings.DualSenseWirelessSpeaker ? "1" : "0";
-            env["ASTROHYBRID_DS_WIRELESS_HAPTICS"] = settings.DualSenseWirelessHaptics ? "1" : "0";
-
             // Window title
             env["ASTROHYBRID_WINDOW_TITLE"] = "Astro Bot";
 

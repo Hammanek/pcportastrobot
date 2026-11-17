@@ -94,15 +94,7 @@
 
                     <TextBlock Text="{Binding TriggerNote}" Style="{StaticResource BodyTextStyle}" TextWrapping="Wrap" Margin="0,10,0,0"/>
 
-                    <CheckBox Content="DualSense Wireless Speaker over Bluetooth"
-                              IsChecked="{Binding DualSenseWirelessSpeaker}"
-                              Style="{StaticResource ModernCheckBoxStyle}" Margin="0,12,0,0"/>
-
-                    <CheckBox Content="DualSense Wireless HD Haptics over Bluetooth"
-                              IsChecked="{Binding DualSenseWirelessHaptics}"
-                              Style="{StaticResource ModernCheckBoxStyle}" Margin="0,8,0,0"/>
-
-                    <TextBlock Text="{Binding DualSenseWirelessNote}" Style="{StaticResource MutedTextStyle}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                    <TextBlock Text="Speaker audio and HD haptics automatically use the connected DualSense USB or Bluetooth path." Style="{StaticResource MutedTextStyle}" Margin="0,10,0,0" TextWrapping="Wrap"/>
                 </StackPanel>
             </Border>
 

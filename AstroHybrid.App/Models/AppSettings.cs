@@ -112,13 +112,6 @@ namespace AstroHybrid.App.Models
         [JsonPropertyName("triggerState")]
         public bool TriggerState { get; set; } = true;
 
-        // Wireless DualSense features (Bluetooth HID audio/haptics) - issue #34
-        [JsonPropertyName("dsWirelessSpeaker")]
-        public bool DualSenseWirelessSpeaker { get; set; } = true;
-
-        [JsonPropertyName("dsWirelessHaptics")]
-        public bool DualSenseWirelessHaptics { get; set; } = true;
-
         [JsonPropertyName("skipIntro")]
         public bool SkipIntro { get; set; } = false;
 

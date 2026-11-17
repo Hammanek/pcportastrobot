@@ -100,36 +100,6 @@ namespace AstroHybrid.App.ViewModels
 
         public string TriggerNote => "DualSense adaptive triggers are supported. Trigger effect state is sent to the game so L2/R2 work correctly.";
 
-        public bool DualSenseWirelessSpeaker
-        {
-            get => _mainViewModel.Settings.DualSenseWirelessSpeaker;
-            set
-            {
-                if (_mainViewModel.Settings.DualSenseWirelessSpeaker != value)
-                {
-                    _mainViewModel.Settings.DualSenseWirelessSpeaker = value;
-                    OnPropertyChanged();
-                    _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.Settings));
-                }
-            }
-        }
-
-        public bool DualSenseWirelessHaptics
-        {
-            get => _mainViewModel.Settings.DualSenseWirelessHaptics;
-            set
-            {
-                if (_mainViewModel.Settings.DualSenseWirelessHaptics != value)
-                {
-                    _mainViewModel.Settings.DualSenseWirelessHaptics = value;
-                    OnPropertyChanged();
-                    _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.Settings));
-                }
-            }
-        }
-
-        public string DualSenseWirelessNote => "Streams controller speaker effects and HD haptics to a Bluetooth-connected DualSense using Opus audio over Bluetooth HID (USB-connected DualSense controllers use native 4-channel USB audio automatically).";
-
         public System.Collections.ObjectModel.ObservableCollection<ControllerInfo> ConnectedControllers => _mainViewModel.Controllers;
 
         public string RecommendedController => _mainViewModel.Controllers.Count > 0
