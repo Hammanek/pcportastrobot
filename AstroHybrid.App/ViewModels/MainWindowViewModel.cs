@@ -551,11 +551,10 @@ namespace AstroHybrid.App.ViewModels
             }
             else
             {
-                for (int i = 0; i < 4; i++)
+                foreach (var i in new[] { 0, 1, 2, 3, 9 })
                 {
-                    var widths = new[] { 1280, 1600, 1920, 2560 };
-                    var heights = new[] { 720, 900, 1080, 1440 };
-                    if (widths[i] <= pc.ScreenWidth && heights[i] <= pc.ScreenHeight)
+                    var preset = AppSettings.ResolutionPresets[i];
+                    if (preset.Width <= pc.ScreenWidth && preset.Height <= pc.ScreenHeight)
                         best.Size = i;
                 }
             }

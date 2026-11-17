@@ -17,7 +17,7 @@ namespace AstroHybrid.App.ViewModels
         }
 
         // Resolution
-        // Indices 0..3 = 16:9, indices 4,5,8 = 21:9, indices 6,7 = 32:9 (#58)
+        // Indices 0..3,9 = 16:9 (9 = 4K), indices 4,5,8 = 21:9, indices 6,7 = 32:9 (#58, #98)
         public string[] ResolutionLabels => AppSettings.ResolutionPresets.Select(p => p.Label).ToArray();
 
         public int ResolutionIndex
@@ -28,7 +28,7 @@ namespace AstroHybrid.App.ViewModels
                 if (_mainViewModel.Settings.Size != value)
                 {
                     _mainViewModel.Settings.Size = value;
-                    bool wantsUltrawide = value >= 4;
+                    bool wantsUltrawide = AppSettings.GetAspectRatio(value) != 16;
                     if (_mainViewModel.Settings.Ultrawide != wantsUltrawide)
                     {
                         _mainViewModel.Settings.Ultrawide = wantsUltrawide;
@@ -138,13 +138,13 @@ namespace AstroHybrid.App.ViewModels
                 if (_mainViewModel.Settings.Ultrawide != value)
                 {
                     _mainViewModel.Settings.Ultrawide = value;
-                    if (value && _mainViewModel.Settings.Size < 4)
+                    if (value && !_mainViewModel.Settings.IsUltrawideSize)
                     {
-                        _mainViewModel.Settings.Size = _mainViewModel.Settings.Size == 3 ? 5 : 4;
+                        _mainViewModel.Settings.Size = _mainViewModel.Settings.Size == 9 ? 8 : _mainViewModel.Settings.Size == 3 ? 5 : 4;
                     }
-                    else if (!value && _mainViewModel.Settings.Size >= 4)
+                    else if (!value && _mainViewModel.Settings.IsUltrawideSize)
                     {
-                        _mainViewModel.Settings.Size = _mainViewModel.Settings.Size == 5 || _mainViewModel.Settings.Size == 6 || _mainViewModel.Settings.Size == 8 ? 3 : 2;
+                        _mainViewModel.Settings.Size = _mainViewModel.Settings.Size == 8 ? 9 : (_mainViewModel.Settings.Size == 5 || _mainViewModel.Settings.Size == 6) ? 3 : 2;
                     }
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(ResolutionIndex));

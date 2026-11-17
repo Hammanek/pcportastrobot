@@ -247,7 +247,7 @@ namespace AstroHybrid.App.Services
             }
 
             // Window size
-            // Indices 0..3 = 16:9, indices 4,5,8 = 21:9, indices 6,7 = 32:9 (#58)
+            // Indices 0..3,9 = 16:9 (9 = 4K), indices 4,5,8 = 21:9, indices 6,7 = 32:9 (#58, #98)
             if (settings.Size >= 0 && settings.Size < AppSettings.ResolutionPresets.Length)
             {
                 var preset = AppSettings.ResolutionPresets[settings.Size];
@@ -255,8 +255,8 @@ namespace AstroHybrid.App.Services
                 int height = preset.Height;
                 if (settings.Ultrawide && !settings.IsUltrawideSize)
                 {
-                    width = settings.Size == 3 ? 3440 : 2560;
-                    height = settings.Size == 3 ? 1440 : 1080;
+                    width = settings.Size == 9 ? 5120 : settings.Size == 3 ? 3440 : 2560;
+                    height = settings.Size == 9 ? 2160 : settings.Size == 3 ? 1440 : 1080;
                 }
                 env["KYTY_GPU_WIDTH"] = width.ToString();
                 env["KYTY_GPU_HEIGHT"] = height.ToString();

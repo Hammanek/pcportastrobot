@@ -159,13 +159,14 @@ namespace AstroHybrid.App.Models
             (5120, 1440, "5120 x 1440 (32:9)", "5120x1440", 32),
             (3840, 1080, "3840 x 1080 (32:9)", "3840x1080", 32),
             (5120, 2160, "5120 x 2160 (21:9)", "5120x2160", 21),
+            (3840, 2160, "3840 x 2160 (4K)",   "3840x2160", 16),
         };
 
         public static int GetAspectRatio(int size) =>
             size >= 0 && size < ResolutionPresets.Length ? ResolutionPresets[size].AspectRatio : 16;
 
         [JsonIgnore]
-        public bool IsUltrawideSize => Size >= 4 && Size < ResolutionPresets.Length;
+        public bool IsUltrawideSize => GetAspectRatio(Size) != 16;
 
         [JsonIgnore]
         public bool IsSuperUltrawideSize => GetAspectRatio(Size) == 32;
@@ -186,7 +187,7 @@ namespace AstroHybrid.App.Models
                 Priority = "abovenormal";
 
             if (IsUltrawideSize) Ultrawide = true;
-            else if (Ultrawide) Size = Size == 3 ? 5 : 4;
+            else if (Ultrawide) Size = Size == 9 ? 8 : Size == 3 ? 5 : 4;
 
             if (!supportsDlss) Upscale = 0;
             if (!supportsFrameGeneration || Upscale == 0) FrameGenMode = 0;
