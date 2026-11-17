@@ -61,11 +61,10 @@
                             </Border>
                             <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
                                 <TextBlock Text="ASTROHYBRID" FontSize="17"
-                                           FontWeight="Bold" Foreground="#FFF4F8FF"
-                                           CharacterSpacing="90"/>
+                                           FontWeight="Bold" Foreground="#FFF4F8FF"/>
                                 <TextBlock Text="PC GAME HUB" FontSize="9"
                                            FontWeight="SemiBold" Foreground="#FF7890B1"
-                                           Margin="1,3,0,0" CharacterSpacing="180"/>
+                                           Margin="1,3,0,0"/>
                             </StackPanel>
                         </StackPanel>
                     </StackPanel>
@@ -73,8 +72,7 @@
 
                 <StackPanel Grid.Row="1" Margin="16,26,16,0">
                     <TextBlock Text="LIBRARY" FontSize="10" FontWeight="Bold"
-                               Foreground="#FF667E9F" Margin="12,0,0,12"
-                               CharacterSpacing="170"/>
+                               Foreground="#FF667E9F" Margin="12,0,0,12"/>
 
                     <RadioButton Style="{StaticResource NavButtonStyle}"
                                  GroupName="MainNavigation"
@@ -82,7 +80,7 @@
                                  Command="{Binding NavigateCommand}" CommandParameter="Home">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="◈" FontSize="19" Width="28"
-                                       Foreground="由" VerticalAlignment="Center"/>
+                                       Foreground="#FF93DEFF" VerticalAlignment="Center"/>
                             <TextBlock Text="Overview" FontSize="14"
                                        FontWeight="SemiBold" VerticalAlignment="Center"/>
                         </StackPanel>
@@ -121,8 +119,7 @@
                     <Border Height="1" Background="#FF23334B" Margin="10,22,10,18"/>
 
                     <TextBlock Text="GAME FILES" FontSize="10" FontWeight="Bold"
-                               Foreground="#FF667E9F" Margin="12,0,0,12"
-                               CharacterSpacing="170"/>
+                               Foreground="#FF667E9F" Margin="12,0,0,12"/>
 
                     <RadioButton Style="{StaticResource NavButtonStyle}" GroupName="MainNavigation"
                                  IsChecked="{Binding CurrentPage, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=Installation}"
@@ -142,8 +139,7 @@
                             <Ellipse Width="8" Height="8" Fill="#FF55D6A6"
                                      VerticalAlignment="Center" Margin="0,0,8,0"/>
                             <TextBlock Text="LAUNCHER STATUS" FontSize="9"
-                                       FontWeight="Bold" Foreground="#FF8299B8"
-                                       CharacterSpacing="110" VerticalAlignment="Center"/>
+                                       FontWeight="Bold" Foreground="#FF8299B8" VerticalAlignment="Center"/>
                         </StackPanel>
                         <TextBlock Text="{Binding StatusMessage}" FontSize="12"
                                    Foreground="#FFE3ECF8" TextWrapping="Wrap"
@@ -155,7 +151,7 @@
                                      Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                         <TextBlock Text="ASTROHYBRID  •  WINDOWS"
                                    FontSize="9" Foreground="#FF607895"
-                                   Margin="0,13,0,0" CharacterSpacing="70"/>
+                                   Margin="0,13,0,0"/>
                     </StackPanel>
                 </Border>
             </Grid>
@@ -179,8 +175,7 @@
                     </Grid.ColumnDefinitions>
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="YOUR GAME SPACE" FontSize="10"
-                                   FontWeight="Bold" Foreground="#FF6F88A8"
-                                   CharacterSpacing="160"/>
+                                   FontWeight="Bold" Foreground="#FF6F88A8"/>
                         <TextBlock Text="Astro Bot" FontSize="21"
                                    FontWeight="SemiBold" Foreground="#FFF4F8FF"
                                    Margin="0,3,0,0"/>
@@ -193,8 +188,7 @@
                             <Ellipse Width="7" Height="7" Fill="#FF55D6A6"
                                      VerticalAlignment="Center" Margin="0,0,8,0"/>
                             <TextBlock Text="NATIVE WINDOWS BUILD" FontSize="9"
-                                       FontWeight="Bold" Foreground="#FFB4C8DF"
-                                       CharacterSpacing="75" VerticalAlignment="Center"/>
+                                       FontWeight="Bold" Foreground="#FFB4C8DF" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Border>
                     <Button Grid.Column="2" Content="Check for updates"
@@ -229,7 +223,7 @@
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,16,0">
                             <TextBlock Text="A NEW ASTROHYBRID UPDATE IS READY"
                                        FontSize="12" FontWeight="Bold"
-                                       Foreground="#FFF4FAFF" CharacterSpacing="55"/>
+                                       Foreground="#FFF4FAFF"/>
                             <TextBlock Text="{Binding UpdateState.LatestUpdate.Version, StringFormat='Version {0}'}"
                                        FontSize="12" Foreground="#FFB8D4EB" Margin="0,3,0,0"/>
                             <TextBlock Text="{Binding UpdateState.LatestUpdate.ReleaseNotes}"
@@ -266,8 +260,7 @@
                     </Grid.ColumnDefinitions>
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="ASTRO BOT" FontSize="12"
-                                   FontWeight="Bold" Foreground="#FFF1F6FD"
-                                   CharacterSpacing="120"/>
+                                   FontWeight="Bold" Foreground="#FFF1F6FD"/>
                         <TextBlock Text="Your adventure is one click away"
                                    FontSize="11" Foreground="#FF8298B4"
                                    Margin="0,4,0,0"/>
