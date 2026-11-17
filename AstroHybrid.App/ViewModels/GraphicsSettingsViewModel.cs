@@ -16,19 +16,27 @@ namespace AstroHybrid.App.ViewModels
             _mainViewModel.PropertyChanged += (sender, e) => OnPropertyChanged(string.Empty);
         }
 
-        // Resolution
-        // Indices 0..3,9 = 16:9 (9 = 4K), indices 4,5,8 = 21:9, indices 6,7 = 32:9 (#58, #98)
-        public string[] ResolutionLabels => AppSettings.ResolutionPresets.Select(p => p.Label).ToArray();
+        // Resolution: group 16:9 presets first (including 4K) before 21:9/32:9 ultrawide options,
+        // while keeping underlying AppSettings.Size storage indices unchanged for saved configs.
+        private static readonly int[] ResolutionDisplayOrder = { 0, 1, 2, 3, 9, 4, 5, 8, 6, 7 };
+
+        public string[] ResolutionLabels => ResolutionDisplayOrder.Select(i => AppSettings.ResolutionPresets[i].Label).ToArray();
 
         public int ResolutionIndex
         {
-            get => _mainViewModel.Settings.Size;
+            get
+            {
+                int displayIndex = Array.IndexOf(ResolutionDisplayOrder, _mainViewModel.Settings.Size);
+                return displayIndex >= 0 ? displayIndex : 2;
+            }
             set
             {
-                if (_mainViewModel.Settings.Size != value)
+                if (value < 0 || value >= ResolutionDisplayOrder.Length) return;
+                int sizeIndex = ResolutionDisplayOrder[value];
+                if (_mainViewModel.Settings.Size != sizeIndex)
                 {
-                    _mainViewModel.Settings.Size = value;
-                    bool wantsUltrawide = AppSettings.GetAspectRatio(value) != 16;
+                    _mainViewModel.Settings.Size = sizeIndex;
+                    bool wantsUltrawide = AppSettings.GetAspectRatio(sizeIndex) != 16;
                     if (_mainViewModel.Settings.Ultrawide != wantsUltrawide)
                     {
                         _mainViewModel.Settings.Ultrawide = wantsUltrawide;
