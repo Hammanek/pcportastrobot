@@ -12,20 +12,20 @@
     <local:ControllerTypeToIconConverter x:Key="ControllerTypeToIconConverter"/>
 
     <!-- Color Palette -->
-    <Color x:Key="PrimaryColor">#FF0066CC</Color>
-    <Color x:Key="PrimaryDarkColor">#FF0052A3</Color>
-    <Color x:Key="PrimaryLightColor">#FF3385D6</Color>
-    <Color x:Key="AccentColor">#FF00D4AA</Color>
-    <Color x:Key="BackgroundColor">#FF1A1A2E</Color>
-    <Color x:Key="SurfaceColor">#FF16213E</Color>
-    <Color x:Key="SurfaceLightColor">#FF1F2A44</Color>
-    <Color x:Key="BorderColor">#FF2D3A5E</Color>
+    <Color x:Key="PrimaryColor">#FF55C9F2</Color>
+    <Color x:Key="PrimaryDarkColor">#FF259FCB</Color>
+    <Color x:Key="PrimaryLightColor">#FF8BE0FF</Color>
+    <Color x:Key="AccentColor">#FF72E2B9</Color>
+    <Color x:Key="BackgroundColor">#FF0A1120</Color>
+    <Color x:Key="SurfaceColor">#FF111E32</Color>
+    <Color x:Key="SurfaceLightColor">#FF1A2B43</Color>
+    <Color x:Key="BorderColor">#FF293D58</Color>
     <Color x:Key="TextPrimaryColor">#FFFFFFFF</Color>
-    <Color x:Key="TextSecondaryColor">#FFB0B8D0</Color>
-    <Color x:Key="TextMutedColor">#FF6A7490</Color>
-    <Color x:Key="ErrorColor">#FFFF4444</Color>
-    <Color x:Key="SuccessColor">#FF00D4AA</Color>
-    <Color x:Key="WarningColor">#FFFFAA00</Color>
+    <Color x:Key="TextSecondaryColor">#FFA9BBD2</Color>
+    <Color x:Key="TextMutedColor">#FF748AA8</Color>
+    <Color x:Key="ErrorColor">#FFFF6C7A</Color>
+    <Color x:Key="SuccessColor">#FF72E2B9</Color>
+    <Color x:Key="WarningColor">#FFFFC36A</Color>
 
     <!-- Brushes -->
     <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource PrimaryColor}"/>
@@ -158,11 +158,11 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Border" Property="Background" Value="#220066CC"/>
+                            <Setter TargetName="Border" Property="Background" Value="#2255C9F2"/>
                             <Setter Property="Foreground" Value="{StaticResource PrimaryLightBrush}"/>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Border" Property="Background" Value="#440066CC"/>
+                            <Setter TargetName="Border" Property="Background" Value="#4455C9F2"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -410,7 +410,7 @@
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
                             Padding="{TemplateBinding Padding}"
-                            CornerRadius="6">
+                            CornerRadius="9">
                         <StackPanel Orientation="Horizontal">
                             <ContentPresenter x:Name="Text" VerticalAlignment="Center"
                                               Content="{TemplateBinding Content}"/>
@@ -422,7 +422,7 @@
                             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Border" Property="Background" Value="#330066CC"/>
+                            <Setter TargetName="Border" Property="Background" Value="#334DBCE8"/>
                             <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
                             <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
                             <Setter TargetName="Border" Property="BorderThickness" Value="0,0,3,0"/>
