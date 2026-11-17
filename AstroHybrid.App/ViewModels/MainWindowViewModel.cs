@@ -1,6 +1,9 @@
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
+using System.IO.Compression;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -78,6 +81,7 @@ namespace AstroHybrid.App.ViewModels
             RebuildInstallationCommand = new RelayCommand(async () => await RebuildInstallationAsync());
             OpenInstallFolderCommand = new RelayCommand(() => _installationManager.OpenInstallFolder());
             OpenLogFolderCommand = new RelayCommand(() => _installationManager.OpenLogFolder());
+            ExportSupportLogsCommand = new RelayCommand(ExportSupportLogs);
             ChangeInstallLocationCommand = new RelayCommand(async () => await ChangeInstallLocationAsync());
             UninstallCommand = new RelayCommand(async () => await UninstallAsync());
 
@@ -169,6 +173,15 @@ namespace AstroHybrid.App.ViewModels
             set => SetProperty(ref _statusMessage, value);
         }
 
+        public string AppVersionText
+        {
+            get
+            {
+                var v = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+                return v != null ? $"AstroHybrid v{v.Major}.{v.Minor}.{v.Build}" : "AstroHybrid";
+            }
+        }
+
         public ICommand NavigateCommand { get; }
         public ICommand LaunchGameCommand { get; }
         public ICommand ApplyBestSettingsCommand { get; }
@@ -177,6 +190,7 @@ namespace AstroHybrid.App.ViewModels
         public ICommand RebuildInstallationCommand { get; }
         public ICommand OpenInstallFolderCommand { get; }
         public ICommand OpenLogFolderCommand { get; }
+        public ICommand ExportSupportLogsCommand { get; }
         public ICommand ChangeInstallLocationCommand { get; }
         public ICommand UninstallCommand { get; }
 
@@ -214,6 +228,9 @@ namespace AstroHybrid.App.ViewModels
                     Settings.ApplyBestOnStart = false;
                     ApplyBestSettings();
                 }
+
+                Settings.Sanitize(HardwareInfo);
+                _settingsManager.Save(Settings);
 
                 StatusMessage = InstallationState?.IsInstalled == true ? "Ready" : "Setup required";
 
@@ -293,6 +310,14 @@ namespace AstroHybrid.App.ViewModels
                 }
 
                 StatusMessage = exitCode == 0 ? "Game exited normally" : $"Game exited with code {exitCode}";
+                if (exitCode != 0)
+                {
+                    var detail = DescribeExitFailure(exitCode);
+                    if (!string.IsNullOrEmpty(detail))
+                    {
+                        MessageBox.Show(detail, "AstroHybrid - Game Exited With Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -635,6 +660,82 @@ namespace AstroHybrid.App.ViewModels
             {
                 // Fallback: just close
                 System.Windows.Application.Current.Shutdown();
+            }
+        }
+
+        private string DescribeExitFailure(int exitCode)
+        {
+            string logSnippet = "";
+            try
+            {
+                foreach (var logName in new[] { "hybrid-run.err.log", "hybrid-run.out.log" })
+                {
+                    var path = Path.Combine(_rootDirectory, "Logs", logName);
+                    if (!File.Exists(path)) continue;
+                    var text = File.ReadAllText(path);
+                    if (text.IndexOf("VK_EXT_mesh_shader", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        text.IndexOf("meshShader", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        return "Your GPU or Vulkan driver does not support VK_EXT_mesh_shader (required by Astro Bot's NGG mesh shaders).\n\nIf you have an RTX 20+, RX 6000+, or Intel Arc GPU, update your GPU drivers or select your discrete GPU in Graphics Settings.\n(Older GPUs such as GTX 10/16 or RX 5000/RDNA1 lack hardware mesh shader support.)";
+                    }
+                    if (text.IndexOf("VK_ERROR_DEVICE_LOST", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        logSnippet = "Vulkan device lost (VK_ERROR_DEVICE_LOST) detected in logs. Try lowering resolution, turning Frame Generation off, or closing GPU overlays.";
+                        break;
+                    }
+                    if (text.IndexOf("ObjectDefinitionContext", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        logSnippet = "Game asset assertion (ObjectDefinitionContext). This usually occurs on older dump versions such as US PPSA21564 01.007.000; PPSA21567 01.019.000 is recommended.";
+                        break;
+                    }
+                }
+            }
+            catch { }
+
+            if (exitCode == 321 && string.IsNullOrEmpty(logSnippet))
+                logSnippet = "Renderer initialization or runtime failure (code 321). Make sure your GPU supports Vulkan VK_EXT_mesh_shader and drivers are up to date.";
+            else if (exitCode == -1073741819 && string.IsNullOrEmpty(logSnippet))
+                logSnippet = "Access violation (0xC0000005). Try 'Repair Installation' on the Installation page.";
+            else if (exitCode == -1073740791 && string.IsNullOrEmpty(logSnippet))
+                logSnippet = "Application abort/VRAM failure (0xC0000409). Try lowering resolution or VRAM load.";
+
+            if (string.IsNullOrEmpty(logSnippet)) return "";
+            return $"Astro Bot exited with code {exitCode}.\n\n{logSnippet}\n\nLogs are in Logs\\hybrid-run.out.log and Logs\\hybrid-run.err.log (or use 'Export Support Logs' on the Installation page).";
+        }
+
+        private void ExportSupportLogs()
+        {
+            try
+            {
+                var logsDir = Path.Combine(_rootDirectory, "Logs");
+                Directory.CreateDirectory(logsDir);
+                var zipPath = Path.Combine(logsDir, $"astrohybrid-support-{DateTime.Now:yyyyMMdd-HHmmss}.zip");
+                using (var archive = ZipFile.Open(zipPath, ZipArchiveMode.Create))
+                {
+                    var candidates = new[]
+                    {
+                        Path.Combine(logsDir, "setup.log"),
+                        Path.Combine(logsDir, "setup-relinker.log"),
+                        Path.Combine(logsDir, "hybrid-run.out.log"),
+                        Path.Combine(logsDir, "hybrid-run.err.log"),
+                        Path.Combine(_rootDirectory, "Build", "astrohybrid-settings.json"),
+                        Path.Combine(_rootDirectory, "Build", "RunHybrid", "astrohybrid-game.json")
+                    };
+                    foreach (var file in candidates)
+                    {
+                        if (File.Exists(file))
+                        {
+                            archive.CreateEntryFromFile(file, Path.GetFileName(file));
+                        }
+                    }
+                }
+                StatusMessage = $"Exported support logs to {Path.GetFileName(zipPath)}";
+                MessageBox.Show($"Support logs bundle created (no copyrighted game files included):\n{zipPath}",
+                    "Export Support Logs", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to export logs: {ex.Message}", "Export Support Logs", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
     }

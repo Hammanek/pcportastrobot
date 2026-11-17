@@ -20,6 +20,7 @@ namespace AstroHybrid.App.ViewModels
             ChangeLocationCommand = new RelayCommand(() => _mainViewModel.ChangeInstallLocationCommand.Execute(null));
             OpenInstallFolderCommand = new RelayCommand(() => _mainViewModel.OpenInstallFolderCommand.Execute(null));
             OpenLogFolderCommand = new RelayCommand(() => _mainViewModel.OpenLogFolderCommand.Execute(null));
+            ExportSupportLogsCommand = new RelayCommand(() => _mainViewModel.ExportSupportLogsCommand.Execute(null));
             UninstallCommand = new RelayCommand(() => _mainViewModel.UninstallCommand.Execute(null));
             RunSetupAgainCommand = new RelayCommand(RunSetupAgain);
         }
@@ -51,6 +52,7 @@ namespace AstroHybrid.App.ViewModels
         public ICommand ChangeLocationCommand { get; }
         public ICommand OpenInstallFolderCommand { get; }
         public ICommand OpenLogFolderCommand { get; }
+        public ICommand ExportSupportLogsCommand { get; }
         public ICommand UninstallCommand { get; }
         public ICommand RunSetupAgainCommand { get; }
 

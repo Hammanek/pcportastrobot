@@ -208,17 +208,19 @@ namespace AstroHybrid.App.Services
             var features = GameFeatures.Load(runHybrid);
             // Prefer the soft-assert variant so a command-buffer overflow follows the
             // engine's failure path instead of crashing in command_buffer_writer (issue #25).
-            var lightingExes = settings.Ultrawide && settings.Size == 6
+            bool useUltrawide = settings.Ultrawide || settings.Size >= 4;
+            bool useSuperUltrawide = settings.Size == 6;
+            var lightingExes = useUltrawide && useSuperUltrawide
                 ? new[] { "AstroBot-NonRT-SuperUltrawide-SoftAssert.exe", "AstroBot-SuperUltrawide.exe" }
-                : settings.Ultrawide
+                : useUltrawide
                 ? new[] { "AstroBot-NonRT-Ultrawide-SoftAssert.exe", "AstroBot-Ultrawide.exe" }
                 : new[] { "AstroBot-NonRT-SoftAssert.exe", "AstroBot.exe" };
             if (settings.Lighting >= 0 && settings.Lighting < lightingExes.Length)
             {
                 var exe = lightingExes[settings.Lighting];
                 if (settings.Lighting == 0 && !File.Exists(Path.Combine(runHybrid, exe)))
-                    exe = settings.Ultrawide
-                        ? (settings.Size == 6 ? "AstroBot-NonRT-SuperUltrawide.exe" : "AstroBot-NonRT-Ultrawide.exe")
+                    exe = useUltrawide
+                        ? (useSuperUltrawide ? "AstroBot-NonRT-SuperUltrawide.exe" : "AstroBot-NonRT-Ultrawide.exe")
                         : "AstroBot-NonRT.exe";
                 env["ASTROHYBRID_EXE"] = File.Exists(Path.Combine(runHybrid, exe)) ? exe : "AstroBot.exe";
             }

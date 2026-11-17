@@ -145,6 +145,34 @@ namespace AstroHybrid.App.Models
             RumblePercent = EffectiveRumblePercent;
             Rumble = RumbleSetting.ToLegacyIndex(RumblePercent);
         }
+
+        // Clamps out-of-range indices, syncs Ultrawide with 21:9/32:9 size presets, and turns off
+        // hardware-gated NVIDIA options on systems that do not support them.
+        public void Sanitize(HardwareInfo? hardware)
+        {
+            if (Lighting < 0 || Lighting > 1) Lighting = 0;
+            if (Fps < 0 || Fps > 6) Fps = 0;
+            if (Speed < 0 || Speed > 5) Speed = 0;
+            if (Size < 0 || Size > 6) Size = 2;
+            if (Overlay < 0 || Overlay > 3) Overlay = 0;
+            if (Upscale < 0 || Upscale > 1) Upscale = 0;
+            if (FrameGenMode < 0 || FrameGenMode > 4) FrameGenMode = 0;
+            if (FrameGenTarget < 0 || FrameGenTarget > 6) FrameGenTarget = 2;
+            if (Controller < 0 || Controller > 4) Controller = 0;
+            if (CpPriority < 0 || CpPriority > 2) CpPriority = 2;
+            if (Priority != "normal" && Priority != "abovenormal" && Priority != "high")
+                Priority = "abovenormal";
+
+            if (Size >= 4) Ultrawide = true;
+            else if (Ultrawide) Size = Size == 3 ? 5 : 4;
+
+            if (hardware != null)
+            {
+                if (!hardware.SupportsDlss) Upscale = 0;
+                if (!hardware.SupportsFrameGeneration || Upscale == 0) FrameGenMode = 0;
+                if (!hardware.SupportsReflex) LowLatency = false;
+            }
+        }
     }
 
     public class InstallationManifest

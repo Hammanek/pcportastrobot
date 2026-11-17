@@ -28,6 +28,12 @@ namespace AstroHybrid.App.ViewModels
                 if (_mainViewModel.Settings.Size != value)
                 {
                     _mainViewModel.Settings.Size = value;
+                    bool wantsUltrawide = value >= 4;
+                    if (_mainViewModel.Settings.Ultrawide != wantsUltrawide)
+                    {
+                        _mainViewModel.Settings.Ultrawide = wantsUltrawide;
+                        OnPropertyChanged(nameof(Ultrawide));
+                    }
                     OnPropertyChanged();
                     _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.Settings));
                 }
