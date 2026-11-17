@@ -148,7 +148,7 @@ namespace AstroHybrid.App.Models
 
         // Clamps out-of-range indices, syncs Ultrawide with 21:9/32:9 size presets, and turns off
         // hardware-gated NVIDIA options on systems that do not support them.
-        public void Sanitize(HardwareInfo? hardware)
+        public void Sanitize(bool supportsDlss = true, bool supportsFrameGeneration = true, bool supportsReflex = true)
         {
             if (Lighting < 0 || Lighting > 1) Lighting = 0;
             if (Fps < 0 || Fps > 6) Fps = 0;
@@ -166,12 +166,9 @@ namespace AstroHybrid.App.Models
             if (Size >= 4) Ultrawide = true;
             else if (Ultrawide) Size = Size == 3 ? 5 : 4;
 
-            if (hardware != null)
-            {
-                if (!hardware.SupportsDlss) Upscale = 0;
-                if (!hardware.SupportsFrameGeneration || Upscale == 0) FrameGenMode = 0;
-                if (!hardware.SupportsReflex) LowLatency = false;
-            }
+            if (!supportsDlss) Upscale = 0;
+            if (!supportsFrameGeneration || Upscale == 0) FrameGenMode = 0;
+            if (!supportsReflex) LowLatency = false;
         }
     }
 

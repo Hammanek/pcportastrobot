@@ -229,7 +229,10 @@ namespace AstroHybrid.App.ViewModels
                     ApplyBestSettings();
                 }
 
-                Settings.Sanitize(HardwareInfo);
+                if (HardwareInfo != null)
+                    Settings.Sanitize(HardwareInfo.SupportsDlss, HardwareInfo.SupportsFrameGeneration, HardwareInfo.SupportsReflex);
+                else
+                    Settings.Sanitize();
                 _settingsManager.Save(Settings);
 
                 StatusMessage = InstallationState?.IsInstalled == true ? "Ready" : "Setup required";

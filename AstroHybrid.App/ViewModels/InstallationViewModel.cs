@@ -43,9 +43,11 @@ namespace AstroHybrid.App.ViewModels
 
         public bool IsInstalled => _mainViewModel.InstallationState?.IsInstalled == true;
 
-        public string AnyPs5Version => _mainViewModel.Settings.InstallationManifest?.AnyPs5Version ?? "Unknown";
+        public string AnyPs5Version =>
+            (_mainViewModel.InstallationState?.Manifest ?? _mainViewModel.Settings.InstallationManifest)?.AnyPs5Version ?? "Unknown";
 
-        public string KytyVersion => _mainViewModel.Settings.InstallationManifest?.KytyVersion ?? "Unknown";
+        public string KytyVersion =>
+            (_mainViewModel.InstallationState?.Manifest ?? _mainViewModel.Settings.InstallationManifest)?.KytyVersion ?? "Unknown";
 
         public ICommand RepairCommand { get; }
         public ICommand RebuildCommand { get; }
