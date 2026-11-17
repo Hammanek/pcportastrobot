@@ -84,7 +84,7 @@
 
                             <TextBlock Text="ASTRO BOT" FontSize="51"
                                        FontWeight="ExtraBold" Foreground="#FFF7FBFF"
-                                       Margin="0,20,0,0" CharacterSpacing="40"/>
+                                       Margin="0,20,0,0"/>
                             <TextBlock Text="A universe of adventure. Rebuilt for PC."
                                        FontSize="17" FontWeight="Medium"
                                        Foreground="#FFC5D8EE" Margin="0,5,0,0"/>
@@ -167,8 +167,7 @@
                                            Text="✦" FontSize="18" Foreground="#FF9EDFFF"/>
                                 <TextBlock Canvas.Left="15" Canvas.Top="235"
                                            Text="ASTROHYBRID" FontSize="9"
-                                           FontWeight="Bold" Foreground="#FF8EABC7"
-                                           CharacterSpacing="180"/>
+                                           FontWeight="Bold" Foreground="#FF8EABC7"/>
                             </Canvas>
                         </Grid>
                     </Grid>
@@ -285,8 +284,7 @@
                         <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
                             <Border Background="#222FD3FF" CornerRadius="6" Padding="9,6">
                                 <TextBlock Text="PERSONALISE" FontSize="9"
-                                           FontWeight="Bold" Foreground="#FF9CE6FF"
-                                           CharacterSpacing="60"/>
+                                           FontWeight="Bold" Foreground="#FF9CE6FF"/>
                             </Border>
                             <TextBlock Text="Fine-tune the experience for your hardware."
                                        FontSize="11" Foreground="{StaticResource HomeMutedBrush}"
