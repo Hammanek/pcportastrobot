@@ -8,12 +8,14 @@
         xmlns:vm="clr-namespace:AstroHybrid.App.ViewModels"
         xmlns:models="clr-namespace:AstroHybrid.App.Models"
         mc:Ignorable="d"
-        Title="AstroHybrid" Height="720" Width="1100"
+        Title="AstroHybrid"
+        Width="1320" Height="820"
+        MinWidth="1080" MinHeight="700"
         WindowStartupLocation="CenterScreen"
-        MinHeight="600" MinWidth="900"
+        ResizeMode="CanResizeWithGrip"
+        Background="#FF0A1120"
         Style="{StaticResource MainWindowStyle}"
         Icon="/Resources/astrohybrid.ico">
-
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
@@ -21,16 +23,17 @@
         <local:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter"/>
     </Window.Resources>
 
-    <Grid>
+    <Grid Background="#FF0A1120">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="252"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <!-- Sidebar -->
-        <Border Grid.Column="0" Background="{StaticResource SurfaceBrush}"
-                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0"
-                Width="240">
+        <!-- Navigation rail -->
+        <Border Grid.Column="0"
+                Background="#FF0C1628"
+                BorderBrush="#FF23334B"
+                BorderThickness="0,0,1,0">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -38,113 +41,179 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <!-- Logo -->
-                <Border Grid.Row="0" Padding="20,20,20,10" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
-                    <StackPanel Orientation="Horizontal">
-                        <Border Width="40" Height="40" CornerRadius="8" Background="{StaticResource PrimaryBrush}">
-                            <TextBlock Text="★" FontSize="24" Foreground="White"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
-                            <TextBlock Text="AstroHybrid" FontSize="18" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
-                            <TextBlock Text="Astro Bot PC Port" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                <Border Grid.Row="0"
+                        Padding="24,25,22,24"
+                        BorderBrush="#FF23334B"
+                        BorderThickness="0,0,0,1">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <Border Width="42" Height="42" CornerRadius="13">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Color="#FF54D5FF" Offset="0"/>
+                                        <GradientStop Color="#FF766DFF" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <TextBlock Text="✦" FontSize="27" FontWeight="Bold"
+                                           Foreground="#FF071322"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                            </Border>
+                            <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="ASTROHYBRID" FontSize="17"
+                                           FontWeight="Bold" Foreground="#FFF4F8FF"
+                                           CharacterSpacing="90"/>
+                                <TextBlock Text="PC GAME HUB" FontSize="9"
+                                           FontWeight="SemiBold" Foreground="#FF7890B1"
+                                           Margin="1,3,0,0" CharacterSpacing="180"/>
+                            </StackPanel>
                         </StackPanel>
                     </StackPanel>
                 </Border>
 
-                <!-- Navigation -->
-                <StackPanel Grid.Row="1" Margin="10,20,10,0">
+                <StackPanel Grid.Row="1" Margin="16,26,16,0">
+                    <TextBlock Text="LIBRARY" FontSize="10" FontWeight="Bold"
+                               Foreground="#FF667E9F" Margin="12,0,0,12"
+                               CharacterSpacing="170"/>
+
                     <RadioButton Style="{StaticResource NavButtonStyle}"
+                                 GroupName="MainNavigation"
                                  IsChecked="{Binding CurrentPage, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=Home}"
                                  Command="{Binding NavigateCommand}" CommandParameter="Home">
-                        <RadioButton.Content>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="🏠" FontSize="16" Margin="0,0,12,0"/>
-                                <TextBlock Text="Home"/>
-                            </StackPanel>
-                        </RadioButton.Content>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="◈" FontSize="19" Width="28"
+                                       Foreground="由" VerticalAlignment="Center"/>
+                            <TextBlock Text="Overview" FontSize="14"
+                                       FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        </StackPanel>
                     </RadioButton>
 
-                    <RadioButton Style="{StaticResource NavButtonStyle}"
+                    <RadioButton Style="{StaticResource NavButtonStyle}" GroupName="MainNavigation"
                                  IsChecked="{Binding CurrentPage, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=GraphicsSettings}"
                                  Command="{Binding NavigateCommand}" CommandParameter="GraphicsSettings"
-                                 Margin="0,4,0,0">
-                        <RadioButton.Content>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="🎮" FontSize="16" Margin="0,0,12,0"/>
-                                <TextBlock Text="Graphics"/>
-                            </StackPanel>
-                        </RadioButton.Content>
+                                 Margin="0,5,0,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="▧" FontSize="18" Width="28" VerticalAlignment="Center"/>
+                            <TextBlock Text="Graphics" FontSize="14" VerticalAlignment="Center"/>
+                        </StackPanel>
                     </RadioButton>
 
-                    <RadioButton Style="{StaticResource NavButtonStyle}"
+                    <RadioButton Style="{StaticResource NavButtonStyle}" GroupName="MainNavigation"
                                  IsChecked="{Binding CurrentPage, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=ControllerSettings}"
                                  Command="{Binding NavigateCommand}" CommandParameter="ControllerSettings"
-                                 Margin="0,4,0,0">
-                        <RadioButton.Content>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="🎯" FontSize="16" Margin="0,0,12,0"/>
-                                <TextBlock Text="Controller"/>
-                            </StackPanel>
-                        </RadioButton.Content>
+                                 Margin="0,5,0,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="⌘" FontSize="18" Width="28" VerticalAlignment="Center"/>
+                            <TextBlock Text="Controller" FontSize="14" VerticalAlignment="Center"/>
+                        </StackPanel>
                     </RadioButton>
 
-                    <RadioButton Style="{StaticResource NavButtonStyle}"
+                    <RadioButton Style="{StaticResource NavButtonStyle}" GroupName="MainNavigation"
                                  IsChecked="{Binding CurrentPage, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=AdvancedSettings}"
                                  Command="{Binding NavigateCommand}" CommandParameter="AdvancedSettings"
-                                 Margin="0,4,0,0">
-                        <RadioButton.Content>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="⚙️" FontSize="16" Margin="0,0,12,0"/>
-                                <TextBlock Text="Advanced"/>
-                            </StackPanel>
-                        </RadioButton.Content>
+                                 Margin="0,5,0,0">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="⚙" FontSize="18" Width="28" VerticalAlignment="Center"/>
+                            <TextBlock Text="Advanced" FontSize="14" VerticalAlignment="Center"/>
+                        </StackPanel>
                     </RadioButton>
 
-                    <RadioButton Style="{StaticResource NavButtonStyle}"
+                    <Border Height="1" Background="#FF23334B" Margin="10,22,10,18"/>
+
+                    <TextBlock Text="GAME FILES" FontSize="10" FontWeight="Bold"
+                               Foreground="#FF667E9F" Margin="12,0,0,12"
+                               CharacterSpacing="170"/>
+
+                    <RadioButton Style="{StaticResource NavButtonStyle}" GroupName="MainNavigation"
                                  IsChecked="{Binding CurrentPage, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=Installation}"
-                                 Command="{Binding NavigateCommand}" CommandParameter="Installation"
-                                 Margin="0,4,0,0">
-                        <RadioButton.Content>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="📦" FontSize="16" Margin="0,0,12,0"/>
-                                <TextBlock Text="Installation"/>
-                            </StackPanel>
-                        </RadioButton.Content>
+                                 Command="{Binding NavigateCommand}" CommandParameter="Installation">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="⇩" FontSize="18" Width="28" VerticalAlignment="Center"/>
+                            <TextBlock Text="Installation" FontSize="14" VerticalAlignment="Center"/>
+                        </StackPanel>
                     </RadioButton>
                 </StackPanel>
 
-                <!-- Status Bar -->
-                <Border Grid.Row="2" Padding="20" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+                <Border Grid.Row="2" Margin="16,18,16,18" Padding="16"
+                        Background="#FF111F34" BorderBrush="#FF263A55"
+                        BorderThickness="1" CornerRadius="14">
                     <StackPanel>
-                        <TextBlock Text="STATUS" Style="{StaticResource MutedTextStyle}" Margin="0,0,0,4"/>
-                        <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource BodyTextStyle}" TextWrapping="Wrap"/>
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="8" Height="8" Fill="#FF55D6A6"
+                                     VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="LAUNCHER STATUS" FontSize="9"
+                                       FontWeight="Bold" Foreground="#FF8299B8"
+                                       CharacterSpacing="110" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock Text="{Binding StatusMessage}" FontSize="12"
+                                   Foreground="#FFE3ECF8" TextWrapping="Wrap"
+                                   Margin="0,10,0,0"/>
                         <ProgressBar Value="{Binding IsLoading, Converter={StaticResource BoolToProgressConverter}}"
                                      Maximum="1" IsIndeterminate="{Binding IsLoading}"
-                                     Style="{StaticResource ModernProgressBarStyle}" Height="4" Margin="0,8,0,0"
+                                     Style="{StaticResource ModernProgressBarStyle}"
+                                     Height="4" Margin="0,12,0,0"
                                      Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                        <TextBlock Text="ASTROHYBRID  •  WINDOWS"
+                                   FontSize="9" Foreground="#FF607895"
+                                   Margin="0,13,0,0" CharacterSpacing="70"/>
                     </StackPanel>
                 </Border>
             </Grid>
         </Border>
 
-        <!-- Main Content -->
-        <Border Grid.Column="1" Background="{StaticResource BackgroundBrush}">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
+        <!-- Main workspace -->
+        <Grid Grid.Column="1" Background="#FF0A1120">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="82"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="92"/>
+            </Grid.RowDefinitions>
 
-                <!-- Page Content -->
-                <ContentControl Grid.Row="0" Content="{Binding CurrentPage, Converter={StaticResource PageTemplateSelector}}"
-                                Margin="30,30,30,0"/>
+            <Border Grid.Row="0" BorderBrush="#FF1D2B40"
+                    BorderThickness="0,0,0,1" Background="#FF0D1728">
+                <Grid Margin="32,0,32,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="YOUR GAME SPACE" FontSize="10"
+                                   FontWeight="Bold" Foreground="#FF6F88A8"
+                                   CharacterSpacing="160"/>
+                        <TextBlock Text="Astro Bot" FontSize="21"
+                                   FontWeight="SemiBold" Foreground="#FFF4F8FF"
+                                   Margin="0,3,0,0"/>
+                    </StackPanel>
+                    <Border Grid.Column="1" Background="#FF13243A"
+                            BorderBrush="#FF29425D" BorderThickness="1"
+                            CornerRadius="20" Padding="13,8"
+                            VerticalAlignment="Center" Margin="0,0,14,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="7" Height="7" Fill="#FF55D6A6"
+                                     VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="NATIVE WINDOWS BUILD" FontSize="9"
+                                       FontWeight="Bold" Foreground="#FFB4C8DF"
+                                       CharacterSpacing="75" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                    <Button Grid.Column="2" Content="Check for updates"
+                            Command="{Binding CheckForUpdatesCommand}"
+                            Style="{StaticResource TextButtonStyle}"
+                            Foreground="#FF9BCBE5" Padding="12,8"
+                            VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
 
-                <!-- Update Notification Banner -->
-                <Border Grid.Row="0" VerticalAlignment="Top" Margin="30,30,30,0"
+            <Grid Grid.Row="1">
+                <ContentControl Content="{Binding CurrentPage, Converter={StaticResource PageTemplateSelector}}"
+                                Margin="30,26,30,20"/>
+
+                <!-- Update notification -->
+                <Border VerticalAlignment="Top" Margin="30,18,30,0"
                         Visibility="{Binding ShowUpdateNotification, Converter={StaticResource BooleanToVisibilityConverter}}"
-                        Background="{StaticResource PrimaryBrush}" CornerRadius="8" Padding="20"
-                        BorderBrush="{StaticResource AccentBrush}" BorderThickness="1">
+                        Background="#FF193452" CornerRadius="15" Padding="18"
+                        BorderBrush="#FF4BBFEA" BorderThickness="1">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
@@ -152,59 +221,80 @@
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="🔔" FontSize="24" VerticalAlignment="Center" Margin="0,0,16,0"/>
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <TextBlock Text="NEW ASTROHYBRID UPDATE AVAILABLE" FontSize="14" FontWeight="Bold" Foreground="White"/>
-                            <TextBlock Text="{Binding UpdateState.LatestUpdate.Version, StringFormat='Version {0}'}" FontSize="13" Foreground="#CCFFFFFF" Margin="0,2,0,0"/>
-                            <TextBlock Text="{Binding UpdateState.LatestUpdate.ReleaseNotes}" FontSize="12" Foreground="#AAFFFFFF" TextWrapping="Wrap" MaxWidth="500" Margin="0,8,0,0"/>
+                        <Border Width="40" Height="40" CornerRadius="12"
+                                Background="#FF245477" VerticalAlignment="Center">
+                            <TextBlock Text="↻" FontSize="23" Foreground="#FF8BE0FF"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,16,0">
+                            <TextBlock Text="A NEW ASTROHYBRID UPDATE IS READY"
+                                       FontSize="12" FontWeight="Bold"
+                                       Foreground="#FFF4FAFF" CharacterSpacing="55"/>
+                            <TextBlock Text="{Binding UpdateState.LatestUpdate.Version, StringFormat='Version {0}'}"
+                                       FontSize="12" Foreground="#FFB8D4EB" Margin="0,3,0,0"/>
+                            <TextBlock Text="{Binding UpdateState.LatestUpdate.ReleaseNotes}"
+                                       FontSize="11" Foreground="#FF9FB8D1"
+                                       TextWrapping="Wrap" MaxWidth="520" Margin="0,5,0,0"/>
                         </StackPanel>
-                        <Button Grid.Column="2" Content="Update Now" Command="{Binding DownloadUpdateCommand}"
-                                Style="{StaticResource PrimaryButtonStyle}" MinWidth="120" MinHeight="36"
-                                FontSize="13" FontWeight="SemiBold" Margin="16,0,8,0"
+                        <Button Grid.Column="2" Content="Update now"
+                                Command="{Binding DownloadUpdateCommand}"
+                                Style="{StaticResource PrimaryButtonStyle}"
+                                MinWidth="112" MinHeight="38" FontSize="12"
+                                Margin="8,0"
                                 Visibility="{Binding UpdateState.IsDownloading, Converter={StaticResource InverseBooleanToVisibilityConverter}}"/>
-                        <Button Grid.Column="2" Content="Downloading..." Style="{StaticResource PrimaryButtonStyle}" MinWidth="120" MinHeight="36"
-                                FontSize="13" FontWeight="SemiBold" Margin="16,0,8,0" IsEnabled="False"
+                        <Button Grid.Column="2" Content="Downloading…"
+                                Style="{StaticResource PrimaryButtonStyle}"
+                                MinWidth="112" MinHeight="38" FontSize="12"
+                                IsEnabled="False" Margin="8,0"
                                 Visibility="{Binding UpdateState.IsDownloading, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                        <Button Grid.Column="3" Content="Ignore for Now" Command="{Binding IgnoreUpdateCommand}"
-                                Style="{StaticResource SecondaryButtonStyle}" MinWidth="110" MinHeight="36"
-                                FontSize="13" Margin="8,0,0,0"
-                                Visibility="{Binding UpdateState.IsDownloading, Converter={StaticResource InverseBooleanToVisibilityConverter}}"/>
-                        <Button Grid.Column="3" Content="Cancel" Command="{Binding DismissUpdateNotificationCommand}"
-                                Style="{StaticResource SecondaryButtonStyle}" MinWidth="80" MinHeight="36"
-                                FontSize="13" Margin="8,0,0,0"
-                                Visibility="{Binding UpdateState.IsDownloading, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    </Grid>
-                </Border>
-
-                <!-- Bottom Action Bar -->
-                <Border Grid.Row="1" Padding="30,20" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-
-                        <StackPanel Grid.Column="0" Orientation="Horizontal">
-                            <Button Content="Best Settings for This PC" Command="{Binding ApplyBestSettingsCommand}"
-                                    Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,10,0"
-                                    Visibility="{Binding CurrentPage, Converter={StaticResource PageVisibilityConverter}, ConverterParameter=GraphicsSettings}"/>
-                        </StackPanel>
-
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                            <!-- Update button shown when update is available and not downloading/installing -->
-                            <Button Content="Update" Command="{Binding DownloadUpdateCommand}"
-                                    Style="{StaticResource PrimaryButtonStyle}" MinWidth="120" MinHeight="48"
-                                    FontSize="16" FontWeight="SemiBold" Margin="0,0,10,0"
-                                    Visibility="{Binding UpdateState.UpdateAvailable, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                    IsEnabled="{Binding UpdateState.UpdateAvailable, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                            <Button Content="Play" Command="{Binding LaunchGameCommand}"
-                                    Style="{StaticResource PrimaryButtonStyle}" MinWidth="140" MinHeight="48"
-                                    FontSize="16" FontWeight="SemiBold"
-                                    IsEnabled="{Binding InstallationState.IsInstalled}"/>
-                        </StackPanel>
+                        <Button Grid.Column="3" Content="Dismiss"
+                                Command="{Binding DismissUpdateNotificationCommand}"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                MinWidth="84" MinHeight="38" FontSize="12"
+                                Margin="8,0,0,0"/>
                     </Grid>
                 </Border>
             </Grid>
-        </Border>
+
+            <!-- Persistent play dock -->
+            <Border Grid.Row="2" Background="#FF0D1728"
+                    BorderBrush="#FF23334B" BorderThickness="0,1,0,0">
+                <Grid Margin="32,0,32,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="ASTRO BOT" FontSize="12"
+                                   FontWeight="Bold" Foreground="#FFF1F6FD"
+                                   CharacterSpacing="120"/>
+                        <TextBlock Text="Your adventure is one click away"
+                                   FontSize="11" Foreground="#FF8298B4"
+                                   Margin="0,4,0,0"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <Button Content="Install / Manage"
+                                Command="{Binding NavigateCommand}"
+                                CommandParameter="Installation"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                MinWidth="132" MinHeight="44" FontSize="12"
+                                Margin="0,0,12,0"/>
+                        <Button Content="Update"
+                                Command="{Binding DownloadUpdateCommand}"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                MinWidth="100" MinHeight="44" FontSize="12"
+                                Margin="0,0,12,0"
+                                Visibility="{Binding UpdateState.UpdateAvailable, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                        <Button Content="▶   PLAY"
+                                Command="{Binding LaunchGameCommand}"
+                                Style="{StaticResource PrimaryButtonStyle}"
+                                MinWidth="164" MinHeight="50"
+                                FontSize="14" FontWeight="Bold"
+                                IsEnabled="{Binding InstallationState.IsInstalled}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 </Window>
