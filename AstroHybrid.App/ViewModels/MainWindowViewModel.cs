@@ -749,7 +749,7 @@ namespace AstroHybrid.App.ViewModels
             else if (exitCode == -1073741819 && string.IsNullOrEmpty(logSnippet))
                 logSnippet = "Access violation (0xC0000005). Try 'Repair Installation' on the Installation page.";
             else if (exitCode == -1073740791 && string.IsNullOrEmpty(logSnippet))
-                logSnippet = "Application abort/VRAM failure (0xC0000409). Try lowering resolution or VRAM load.";
+                logSnippet = "The game stopped itself after a fatal error (0xC0000409). The last lines of Logs\\hybrid-run.err.log say which one; please attach both logs when you report it.";
 
             if (string.IsNullOrEmpty(logSnippet)) return "";
             return $"Astro Bot exited with code {exitCode}.\n\n{logSnippet}\n\nLogs are in Logs\\hybrid-run.out.log and Logs\\hybrid-run.err.log (or use 'Export Support Logs' on the Installation page).";
@@ -766,8 +766,16 @@ namespace AstroHybrid.App.ViewModels
                 wholeMessage = true;
                 return "Your GPU or Vulkan driver does not support VK_EXT_mesh_shader (required by Astro Bot's NGG mesh shaders).\n\nIf you have an RTX 20+, RX 6000+, or Intel Arc GPU, update your GPU drivers or select your discrete GPU in Graphics Settings.\n(Older GPUs such as GTX 10/16 or RX 5000/RDNA1 lack hardware mesh shader support.)";
             }
-            if (Has("VK_ERROR_DEVICE_LOST"))
-                return "Vulkan device lost (VK_ERROR_DEVICE_LOST) detected in logs. Try lowering resolution, turning Frame Generation off, or closing GPU overlays.";
+            // Kyty prints Vulkan results by their vk::Result names ("ErrorDeviceLost"), not VK_ERROR_* (#66).
+            if (Has("VK_ERROR_DEVICE_LOST") || Has("ErrorDeviceLost"))
+                return "The graphics driver reset the GPU (Vulkan device lost). Update the GPU driver, close GPU overlays and recording tools, and try a lower resolution or Frame Generation off. If it keeps happening at the same spot, please report it with the logs.";
+            // Video memory ran out (#107, #6): Kyty stops when an image or sparse image can't be allocated.
+            if (Has("ErrorOutOfDeviceMemory") || Has("failed to create image") || Has("allocate sparse image memory failed"))
+                return "The GPU ran out of video memory. Lower the resolution, use 'Ray Tracing OFF' (faster lighting), turn Frame Generation off, and close other programs that use the GPU (browsers, recording, overlays). Cards with 8 GB or less are the most affected.";
+            // A PS5 system function the runtime does not provide yet (#73, #53): name it so it can be reported.
+            var notImplemented = System.Text.RegularExpressions.Regex.Match(text, @"what\(\):\s+(\S[^\r\n]*?) not implemented");
+            if (notImplemented.Success)
+                return $"The game called a PS5 system function that AstroHybrid does not support yet ({notImplemented.Groups[1].Value}). Please report this with the logs; it usually happens at the same place every time.";
             if (Has("param.json or param.sfo not found"))
                 return "The game's files could not be found (param.json). The dump was probably moved, renamed or is on a drive that is not connected. Reconnect it, or use 'Repair Installation' on the Installation page and pick the dump's current folder.";
             // Game asserts in the asset loader (#54, #47, #80, #130): seen only on game version 01.007.000.
