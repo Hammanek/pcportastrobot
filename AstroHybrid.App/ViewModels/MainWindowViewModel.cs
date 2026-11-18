@@ -426,6 +426,8 @@ namespace AstroHybrid.App.ViewModels
                         MessageBox.Show(info.ValidationError ?? "That folder is not an Astro Bot dump.", "AstroHybrid", MessageBoxButton.OK, MessageBoxImage.Warning);
                         return;
                     }
+                    if (!string.IsNullOrEmpty(info.Warning))
+                        MessageBox.Show(info.Warning, "AstroHybrid - Game version", MessageBoxButton.OK, MessageBoxImage.Warning);
                     Settings.GameDumpPath = dialog.SelectedPath;
                     _settingsManager.Save(Settings);
                 }
@@ -475,6 +477,8 @@ namespace AstroHybrid.App.ViewModels
                         MessageBox.Show(info.ValidationError ?? "That folder is not an Astro Bot dump.", "AstroHybrid", MessageBoxButton.OK, MessageBoxImage.Warning);
                         return;
                     }
+                    if (!string.IsNullOrEmpty(info.Warning))
+                        MessageBox.Show(info.Warning, "AstroHybrid - Game version", MessageBoxButton.OK, MessageBoxImage.Warning);
                     Settings.GameDumpPath = dialog.SelectedPath;
                     _settingsManager.Save(Settings);
                 }
@@ -731,27 +735,11 @@ namespace AstroHybrid.App.ViewModels
                 {
                     var path = Path.Combine(_rootDirectory, "Logs", logName);
                     if (!File.Exists(path)) continue;
-                    var text = File.ReadAllText(path);
-                    if (text.IndexOf("VK_EXT_mesh_shader", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                        text.IndexOf("meshShader", StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        return "Your GPU or Vulkan driver does not support VK_EXT_mesh_shader (required by Astro Bot's NGG mesh shaders).\n\nIf you have an RTX 20+, RX 6000+, or Intel Arc GPU, update your GPU drivers or select your discrete GPU in Graphics Settings.\n(Older GPUs such as GTX 10/16 or RX 5000/RDNA1 lack hardware mesh shader support.)";
-                    }
-                    if (text.IndexOf("VK_ERROR_DEVICE_LOST", StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        logSnippet = "Vulkan device lost (VK_ERROR_DEVICE_LOST) detected in logs. Try lowering resolution, turning Frame Generation off, or closing GPU overlays.";
-                        break;
-                    }
-                    if (text.IndexOf("param.json or param.sfo not found", StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        logSnippet = "The game's files could not be found (param.json). The dump was probably moved, renamed or is on a drive that is not connected. Reconnect it, or use 'Repair Installation' on the Installation page and pick the dump's current folder.";
-                        break;
-                    }
-                    if (text.IndexOf("ObjectDefinitionContext", StringComparison.OrdinalIgnoreCase) >= 0)
-                    {
-                        logSnippet = "Game asset assertion (ObjectDefinitionContext). This usually occurs on older dump versions such as US PPSA21564 01.007.000; PPSA21567 01.019.000 is recommended.";
-                        break;
-                    }
+                    var hint = HintFromLog(File.ReadAllText(path), Settings.GameVersion, out bool wholeMessage);
+                    if (hint == null) continue;
+                    if (wholeMessage) return hint;
+                    logSnippet = hint;
+                    break;
                 }
             }
             catch { }
@@ -765,6 +753,33 @@ namespace AstroHybrid.App.ViewModels
 
             if (string.IsNullOrEmpty(logSnippet)) return "";
             return $"Astro Bot exited with code {exitCode}.\n\n{logSnippet}\n\nLogs are in Logs\\hybrid-run.out.log and Logs\\hybrid-run.err.log (or use 'Export Support Logs' on the Installation page).";
+        }
+
+        // Turns the text of a game log into advice for the player, or null when nothing known is in it.
+        // wholeMessage: the hint replaces the whole dialog text (no exit code / log paths around it).
+        public static string? HintFromLog(string text, string? gameVersion, out bool wholeMessage)
+        {
+            wholeMessage = false;
+            bool Has(string s) => text.IndexOf(s, StringComparison.OrdinalIgnoreCase) >= 0;
+            if (Has("VK_EXT_mesh_shader") || Has("meshShader"))
+            {
+                wholeMessage = true;
+                return "Your GPU or Vulkan driver does not support VK_EXT_mesh_shader (required by Astro Bot's NGG mesh shaders).\n\nIf you have an RTX 20+, RX 6000+, or Intel Arc GPU, update your GPU drivers or select your discrete GPU in Graphics Settings.\n(Older GPUs such as GTX 10/16 or RX 5000/RDNA1 lack hardware mesh shader support.)";
+            }
+            if (Has("VK_ERROR_DEVICE_LOST"))
+                return "Vulkan device lost (VK_ERROR_DEVICE_LOST) detected in logs. Try lowering resolution, turning Frame Generation off, or closing GPU overlays.";
+            if (Has("param.json or param.sfo not found"))
+                return "The game's files could not be found (param.json). The dump was probably moved, renamed or is on a drive that is not connected. Reconnect it, or use 'Repair Installation' on the Installation page and pick the dump's current folder.";
+            // Game asserts in the asset loader (#54, #47, #80, #130): seen only on game version 01.007.000.
+            if (Has("ObjectDefinitionContext") || Has("Duplicated definition name") ||
+                (Has("Xml.cpp:") && Has("is broken and failed to load")))
+            {
+                return "The game stopped in its asset loader (\"Duplicated definition name\" / \"Xml file is broken\"). " +
+                       ((gameVersion ?? "").StartsWith(GameValidator.KnownBadVersion)
+                           ? "Your dump is game version 01.007.000, which is known to crash this way. Please update the dump to 01.019.000 and run 'Repair Installation'."
+                           : "This is known from game version 01.007.000; 01.019.000 is recommended. If your dump is already 01.019.000, please report it with the logs.");
+            }
+            return null;
         }
 
         private void ExportSupportLogs()

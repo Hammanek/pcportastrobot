@@ -11,6 +11,9 @@ namespace AstroHybrid.App.Models
         public string Version { get; set; } = "";
         public bool IsValid { get; set; }
         public string? ValidationError { get; set; }
+        // A valid dump that is known to have problems (for example a game version that crashes): shown to the
+        // player before setup, never a refusal.
+        public string? Warning { get; set; }
         public DateTime? LastValidated { get; set; }
     }
 
