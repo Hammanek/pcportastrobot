@@ -10,13 +10,14 @@ if not exist "%ROOT%Build\RunHybrid\AstroBot.exe" (
   exit /b 1
 )
 set APS5_GPU_ENGINE=kyty
-rem Keep commit-epoch fastpath off and buffer-range fixes on so cloth, blankets, and bubbles
+rem Keep writable commit-epoch fastpath off (read-only clean memo fastpath on) and buffer-range fixes on so cloth, blankets, and bubbles
 rem do not corrupt into stray polygons (issues #30, #35).
-set "KYTY_BARRIER_BATCH="
-set "KYTY_DISPATCH_OVERLAP="
-set "KYTY_WAVE64_WARPS="
-set "ASTROHYBRID_COMMIT_EPOCH_FASTPATH=0"
-set "KYTY_BUFFER_RANGE_FIXES=1"
+if not defined ASTROHYBRID_COMMIT_EPOCH_FASTPATH set "ASTROHYBRID_COMMIT_EPOCH_FASTPATH=read"
+if not defined KYTY_BUFFER_RANGE_FIXES set "KYTY_BUFFER_RANGE_FIXES=1"
+if not defined ASTROHYBRID_OPT_1 set "ASTROHYBRID_OPT_1=1"
+if not defined ASTROHYBRID_OPT_2 set "ASTROHYBRID_OPT_2=1"
+if not defined KYTY_SUBMIT_MIN_INTERVAL_US set "KYTY_SUBMIT_MIN_INTERVAL_US=500"
+if not defined KYTY_GFX_SLICE_DRAWS set "KYTY_GFX_SLICE_DRAWS=512"
 rem Hang watchdog (A/B 2026-11-07, OVERNIGHT.md): the preset's KYTY_HANG_WATCHDOG=auto turns it on for
 rem RTX 50 GPUs, where it costs the command processor ~1.8 ms per frame in Sky Garden (CP 33.7 -> 31.9 ms).
 rem It only records diagnostics when the game hangs. ASTROHYBRID_HANG_WATCHDOG=1 (or KYTY_HANG_WATCHDOG
