@@ -1,8 +1,22 @@
 #!/usr/bin/env bash
+# AstroHybrid on Linux through Wine (11+ or Proton's wine; tested with Wine 11.22 on CachyOS).
+#
+#   ./Run-AstroHybrid-Linux.sh                  start the game (same settings as Run-AstroHybrid.bat)
+#   ./Run-AstroHybrid-Linux.sh --setup <dump>   build Build/RunHybrid from your PS5 dump, headless
+#   ./Run-AstroHybrid-Linux.sh --launcher       open the AstroHybrid launcher (needs dotnet48 in the prefix)
+#
+# The game itself needs no winetricks; the WPF launcher needs `winetricks dotnet48 corefonts`.
+# Environment variables set before running this script reach the game (Wine passes them through),
+# so e.g. `KYTY_GPU_WIDTH=2560 KYTY_GPU_HEIGHT=1440 ./Run-AstroHybrid-Linux.sh` or wrapping the script in
+# gamescope/MangoHud works as usual.
+#   WINEPREFIX              Wine prefix (default: ~/.wine)
+#   WINE                    wine binary (default: wine)
+#   ASTROHYBRID_DS_BT_FIX=0 skip the Bluetooth DualSense registry fix (#59)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WINE="${WINE:-wine}"
+command -v "$WINE" >/dev/null || { echo "wine not found (set WINE=/path/to/wine)" >&2; exit 1; }
 
 # Wine marks a Bluetooth DualSense's parent devnode only as WINEBUS\WINE_COMP_HID, so SDL (inside
 # kyty_gpu.dll) treats it as USB and sends USB-format output reports: no rumble, haptics or light bar
@@ -24,8 +38,26 @@ fix_dualsense_bt() {
     done || true
 }
 
+case "${1:-}" in
+    --setup)
+        [ -d "${2:-}" ] || { echo "usage: $0 --setup <folder with eboot.bin, sce_module, sce_sys>" >&2; exit 1; }
+        dump="$(cd "$2" && pwd)"
+        cd "$ROOT"
+        exec "$WINE" AstroHybrid.exe --setup "Z:${dump//\//\\}"
+        ;;
+    --launcher)
+        [ "${ASTROHYBRID_DS_BT_FIX:-1}" = "0" ] || fix_dualsense_bt
+        cd "$ROOT"
+        exec "$WINE" AstroHybrid.exe
+        ;;
+    -h|--help)
+        sed -n '2,/^set -euo/p' "${BASH_SOURCE[0]}" | sed -n 's/^# \{0,1\}//p'
+        exit 0
+        ;;
+esac
+
 if [ ! -f "$ROOT/Build/RunHybrid/AstroBot.exe" ]; then
-    echo "Build/RunHybrid not found: run setup first" >&2
+    echo "Build/RunHybrid not found: run $0 --setup <dump folder> first" >&2
     exit 1
 fi
 [ "${ASTROHYBRID_DS_BT_FIX:-1}" = "0" ] || fix_dualsense_bt
