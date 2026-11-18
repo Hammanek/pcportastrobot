@@ -2,30 +2,31 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RUN_DIR="$ROOT/Build/RunHybrid"
-EXE_NAME="${ASTROHYBRID_EXE:-AstroBot-NonRT-SoftAssert.exe}"
+WINE="${WINE:-wine}"
 
-if [ ! -f "$RUN_DIR/$EXE_NAME" ]; then
-    EXE_NAME="AstroBot.exe"
+if [ ! -f "$ROOT/Build/RunHybrid/AstroBot.exe" ]; then
+    echo "Build/RunHybrid not found: run setup first" >&2
+    exit 1
 fi
 
-mkdir -p "$ROOT/Logs"
+# Real-time game speed, as LauncherService does: on when setup found the frame-rate block, with its address.
+features="$ROOT/Build/RunHybrid/astrohybrid-game.json"
+if [ -z "${ASTROHYBRID_GAME_SPEED:-}" ] && [ -f "$features" ]; then
+    if grep -Eq '"RealTimeSpeed"[[:space:]]*:[[:space:]]*false' "$features"; then
+        export ASTROHYBRID_GAME_SPEED=0
+    else
+        export ASTROHYBRID_GAME_SPEED=1
+        step=$(sed -nE 's/.*"GameStepAddress"[[:space:]]*:[[:space:]]*([0-9]+).*/\1/p' "$features" | head -n1)
+        if [ -n "$step" ] && [ "$step" != "0" ] && [ -z "${ASTROHYBRID_GAME_STEP_ADDR:-}" ]; then
+            export ASTROHYBRID_GAME_STEP_ADDR="$(printf '0x%x' "$step")"
+        fi
+    fi
+fi
 
-export APS5_GPU_ENGINE="${APS5_GPU_ENGINE:-kyty}"
-export ASTROHYBRID_CACHE_TITLE_ID="${ASTROHYBRID_CACHE_TITLE_ID:-PPSA21567}"
-export KYTY_GPU_HOST_MODULE="${KYTY_GPU_HOST_MODULE:-astrohybrid_host.dll}"
-export KYTY_GPU_WIDTH="${KYTY_GPU_WIDTH:-1920}"
-export KYTY_GPU_HEIGHT="${KYTY_GPU_HEIGHT:-1080}"
-export KYTY_BUFFER_RANGE_FIXES="${KYTY_BUFFER_RANGE_FIXES:-1}"
-export ASTROHYBRID_COMMIT_EPOCH_FASTPATH="${ASTROHYBRID_COMMIT_EPOCH_FASTPATH:-0}"
-export APS5_SAVEDATA_TRANSFER_FALLBACK="${APS5_SAVEDATA_TRANSFER_FALLBACK:-1}"
-export ASTROHYBRID_GAME_SPEED="${ASTROHYBRID_GAME_SPEED:-1}"
+# Start through Run-AstroHybrid.bat, as the launcher's Play button does, so Linux gets the same defaults
+# as Windows (u59-preset.cmd engine preset, trigger state, motion, priorities, executable choice, logs).
+# Variables set before running this script still take precedence.
+# The DLL overrides keep Wine from replacing the shipped DLLs with builtin stubs.
 export WINEDLLOVERRIDES="${WINEDLLOVERRIDES:-astrohybrid_host=n,b;kyty_gpu=n,b}"
-
-EXTRA_ARGS=()
-if [ "${ASTROHYBRID_SKIP_INTRO:-0}" = "1" ]; then
-    EXTRA_ARGS+=("-skipIntro")
-fi
-
-cd "$RUN_DIR"
-exec "${WINE:-wine}" "$RUN_DIR/$EXE_NAME" "${EXTRA_ARGS[@]}" "$@" >"$ROOT/Logs/hybrid-run.out.log" 2>"$ROOT/Logs/hybrid-run.err.log"
+cd "$ROOT"
+exec "$WINE" cmd /c Run-AstroHybrid.bat "$@"
