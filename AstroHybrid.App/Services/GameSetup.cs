@@ -417,6 +417,36 @@ namespace AstroHybrid.App.Services
             log($"app0: {Directory.GetDirectories(app0).Length} folders, {Directory.GetFiles(app0).Length} files");
         }
 
+        // Build\RunHybrid\app0 holds junctions into the player's dump. When the dump is moved, renamed or on a
+        // drive that is not connected, those links dangle and the game stops at start with
+        // "param.json or param.sfo not found" (#44). Returns a description of the first broken link, or null
+        // when the game folder is usable.
+        public static string? DescribeBrokenGameLink(string runHybrid)
+        {
+            var app0 = Path.Combine(runHybrid, "app0");
+            if (!Directory.Exists(app0))
+                return "the game folder (Build\\RunHybrid\\app0) is missing";
+            foreach (var dir in Directory.GetDirectories(app0))
+            {
+                if ((new DirectoryInfo(dir).Attributes & FileAttributes.ReparsePoint) == 0)
+                    continue;
+                try
+                {
+                    // Listing a junction whose target is gone throws; Directory.Exists does not notice it.
+                    using (var entries = Directory.EnumerateFileSystemEntries(dir).GetEnumerator())
+                        entries.MoveNext();
+                }
+                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+                {
+                    return $"the link app0\\{Path.GetFileName(dir)} points to a folder that can't be opened ({ex.Message.Trim()})";
+                }
+            }
+            var sceSys = Path.Combine(app0, "sce_sys");
+            if (!File.Exists(Path.Combine(sceSys, "param.json")) && !File.Exists(Path.Combine(sceSys, "param.sfo")))
+                return "the game's sce_sys\\param.json can't be found through app0";
+            return null;
+        }
+
         private static void LinkOrCopy(string source, string target)
         {
             if (!CreateHardLink(target, source, IntPtr.Zero))

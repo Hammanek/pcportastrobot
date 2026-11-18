@@ -292,6 +292,9 @@ namespace AstroHybrid.App.ViewModels
                 return;
             }
 
+            if (!await EnsureGameLinkAsync())
+                return;
+
             IsLaunching = true;
             StatusMessage = "Launching Astro Bot...";
 
@@ -370,6 +373,43 @@ namespace AstroHybrid.App.ViewModels
             foreach (var c in detected)
                 Controllers.Add(c);
 
+        }
+
+        // A moved or disconnected dump leaves Build\RunHybrid\app0 pointing nowhere, and the game then stops at
+        // start (#44). Check before launching and offer the repair instead. Returns true when the game may start.
+        private async Task<bool> EnsureGameLinkAsync()
+        {
+            string? problem;
+            try
+            {
+                problem = GameSetup.DescribeBrokenGameLink(System.IO.Path.Combine(_rootDirectory, "Build", "RunHybrid"));
+            }
+            catch
+            {
+                return true; // never block a launch because the check itself failed
+            }
+            if (problem == null)
+                return true;
+
+            bool dumpFound = !string.IsNullOrEmpty(Settings.GameDumpPath) &&
+                             System.IO.File.Exists(System.IO.Path.Combine(Settings.GameDumpPath, "eboot.bin"));
+            var message = $"Astro Bot can't start: {problem}.\n\n" +
+                          (dumpFound
+                              ? "This usually means the game links are out of date. Repair the installation now?"
+                              : $"The game dump{(string.IsNullOrEmpty(Settings.GameDumpPath) ? "" : $" ({Settings.GameDumpPath})")} was moved, renamed or is on a drive that is not connected. " +
+                                "Connect the drive and press Play again, or choose the dump's new folder and repair now?");
+            if (MessageBox.Show(message, "AstroHybrid", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                return false;
+            var savedDump = Settings.GameDumpPath;
+            if (!dumpFound)
+            {
+                // RepairInstallationAsync asks for the folder when none is saved.
+                Settings.GameDumpPath = "";
+            }
+            await RepairInstallationAsync();
+            if (string.IsNullOrEmpty(Settings.GameDumpPath))
+                Settings.GameDumpPath = savedDump; // folder dialog cancelled: keep the old path
+            return false;
         }
 
         private async Task RepairInstallationAsync()
@@ -700,6 +740,11 @@ namespace AstroHybrid.App.ViewModels
                     if (text.IndexOf("VK_ERROR_DEVICE_LOST", StringComparison.OrdinalIgnoreCase) >= 0)
                     {
                         logSnippet = "Vulkan device lost (VK_ERROR_DEVICE_LOST) detected in logs. Try lowering resolution, turning Frame Generation off, or closing GPU overlays.";
+                        break;
+                    }
+                    if (text.IndexOf("param.json or param.sfo not found", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        logSnippet = "The game's files could not be found (param.json). The dump was probably moved, renamed or is on a drive that is not connected. Reconnect it, or use 'Repair Installation' on the Installation page and pick the dump's current folder.";
                         break;
                     }
                     if (text.IndexOf("ObjectDefinitionContext", StringComparison.OrdinalIgnoreCase) >= 0)
