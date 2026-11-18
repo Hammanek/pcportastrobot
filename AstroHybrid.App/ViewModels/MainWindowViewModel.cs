@@ -90,6 +90,7 @@ namespace AstroHybrid.App.ViewModels
              DownloadUpdateCommand = new RelayCommand(async () => await DownloadAndInstallUpdateAsync(), () => HasUpdateAction && !UpdateState.IsDownloading && !UpdateState.IsInstalling);
             IgnoreUpdateCommand = new RelayCommand(IgnoreUpdate);
             DismissUpdateNotificationCommand = new RelayCommand(() => ShowUpdateNotification = false);
+            RestartToUpdateCommand = new RelayCommand(async () => await RestartToUpdateAsync(), () => UpdateState.IsReadyToRestart);
 
             _ = InitializeAsync();
         }
@@ -145,7 +146,10 @@ namespace AstroHybrid.App.ViewModels
             set => SetProperty(ref _updateState, value);
         }
 
-        public bool HasUpdateAction => UpdateState.UpdateAvailable || UpdateState.IgnoredUpdate != null;
+        public bool HasUpdateAction => (UpdateState.UpdateAvailable || UpdateState.IgnoredUpdate != null) && !UpdateState.IsReadyToRestart;
+
+        // The update is downloaded and unpacked: the banner and the dock show "Restart launcher".
+        public bool IsUpdateReady => UpdateState.IsReadyToRestart;
 
         public bool HasIgnoredUpdate => !UpdateState.UpdateAvailable && UpdateState.IgnoredUpdate != null;
 
@@ -199,6 +203,7 @@ namespace AstroHybrid.App.ViewModels
         public ICommand DownloadUpdateCommand { get; }
         public ICommand IgnoreUpdateCommand { get; }
         public ICommand DismissUpdateNotificationCommand { get; }
+        public ICommand RestartToUpdateCommand { get; }
 
         private async Task InitializeAsync()
         {
@@ -636,16 +641,23 @@ namespace AstroHybrid.App.ViewModels
                     ShowUpdateNotification = true;
                 }
             }
-            else if (!state.UpdateAvailable)
+            else if (!state.UpdateAvailable && !state.IsBusy && !state.IsReadyToRestart)
             {
                 ShowUpdateNotification = false;
+            }
+            // Keep the banner (and its progress line) on screen for the whole update.
+            if (state.IsBusy || state.IsReadyToRestart)
+            {
+                ShowUpdateNotification = true;
             }
 
             // Refresh command states
             OnPropertyChanged(nameof(UpdateState));
             OnPropertyChanged(nameof(HasUpdateAction));
             OnPropertyChanged(nameof(HasIgnoredUpdate));
+            OnPropertyChanged(nameof(IsUpdateReady));
             (DownloadUpdateCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (RestartToUpdateCommand as RelayCommand)?.RaiseCanExecuteChanged();
         }
 
         private async Task CheckForUpdatesAsync(bool forceCheck = false)
@@ -666,6 +678,7 @@ namespace AstroHybrid.App.ViewModels
 
             var updateInfo = UpdateState.LatestUpdate ?? UpdateState.IgnoredUpdate;
             if (updateInfo == null) return;
+            ShowUpdateNotification = true;
 
             // Download the update
             var downloadSuccess = await _updateService.DownloadUpdateAsync(updateInfo);
@@ -678,15 +691,32 @@ namespace AstroHybrid.App.ViewModels
             var installSuccess = await _updateService.InstallUpdateAsync(updateInfo);
             if (installSuccess)
             {
-                ShowUpdateNotification = false;
-                UpdateState.UpdateAvailable = false;
-                UpdateState.LatestUpdate = null;
-
+                // The banner now shows "Restart launcher" (RestartToUpdateAsync finishes the update).
                 // Clear ignored version since we updated
                 var settings = _settingsManager.Load();
                 settings.IgnoredUpdateVersion = null;
                 _settingsManager.Save(settings);
 
+            }
+        }
+
+        private async Task RestartToUpdateAsync()
+        {
+            if (_updateService == null) return;
+            if (IsLaunching || _launcherService.IsGameRunning())
+            {
+                MessageBox.Show("Close Astro Bot first, then press Restart launcher to finish the update.",
+                    "AstroHybrid", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            try
+            {
+                await _updateService.RestartToApplyUpdateAsync();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"The update could not be finished: {ex.Message}\n\nPress Update to download it again.",
+                    "AstroHybrid", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 

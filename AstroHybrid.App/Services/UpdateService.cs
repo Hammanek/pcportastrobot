@@ -183,10 +183,12 @@ namespace AstroHybrid.App.Services
         {
             var state = new UpdateState
             {
+                UpdateAvailable = true,
                 IsDownloading = true,
                 DownloadProgress = 0,
-                DownloadStatus = "Starting download...",
-                LatestUpdate = updateInfo
+                DownloadStatus = $"Updating to {updateInfo.Version}... starting download",
+                LatestUpdate = updateInfo,
+                CurrentVersion = GetCurrentVersion()
             };
 
             StateChanged?.Invoke(state);
@@ -212,6 +214,7 @@ namespace AstroHybrid.App.Services
                 using var fileStream = File.Create(tempFile);
 
                 int bytesRead;
+                double reported = -1;
                 while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)
                 {
                     await fileStream.WriteAsync(buffer, 0, bytesRead);
@@ -220,15 +223,18 @@ namespace AstroHybrid.App.Services
                     if (totalBytes > 0)
                     {
                         var progressPercent = (double)totalRead / totalBytes;
+                        // About 200 UI updates per download instead of one per 8 KB block.
+                        if (progressPercent - reported < 0.005 && totalRead < totalBytes) continue;
+                        reported = progressPercent;
                         state.DownloadProgress = progressPercent;
-                        state.DownloadStatus = $"Downloading... {progressPercent:P1} ({FormatBytes(totalRead)} / {FormatBytes(totalBytes)})";
+                        state.DownloadStatus = $"Updating to {updateInfo.Version}... {progressPercent:P0} ({FormatBytes(totalRead)} / {FormatBytes(totalBytes)})";
                         StateChanged?.Invoke(state);
                         progress?.Report((progressPercent, state.DownloadStatus));
                     }
                 }
 
                 state.DownloadProgress = 1.0;
-                state.DownloadStatus = "Download complete. Verifying...";
+                state.DownloadStatus = $"Updating to {updateInfo.Version}... verifying download";
                 StateChanged?.Invoke(state);
 
                 // Verify file integrity if SHA256 is provided
@@ -241,14 +247,14 @@ namespace AstroHybrid.App.Services
                     }
                 }
 
-                state.DownloadStatus = "Download verified successfully";
+                state.DownloadStatus = $"Updating to {updateInfo.Version}... download verified";
                 StateChanged?.Invoke(state);
                 return true;
             }
             catch (Exception ex)
             {
                 state.IsDownloading = false;
-                state.DownloadStatus = $"Download failed: {ex.Message}";
+                state.DownloadStatus = $"Update failed while downloading: {ex.Message}. Press Update to try again.";
                 state.ErrorMessage = ex.Message;
                 StateChanged?.Invoke(state);
                 return false;
@@ -259,9 +265,12 @@ namespace AstroHybrid.App.Services
         {
             var state = new UpdateState
             {
+                UpdateAvailable = true,
                 IsInstalling = true,
-                DownloadStatus = "Preparing installation...",
-                LatestUpdate = updateInfo
+                DownloadProgress = 1.0,
+                DownloadStatus = $"Updating to {updateInfo.Version}... preparing files",
+                LatestUpdate = updateInfo,
+                CurrentVersion = GetCurrentVersion()
             };
             StateChanged?.Invoke(state);
 
@@ -276,7 +285,7 @@ namespace AstroHybrid.App.Services
                 // Create backup of current launcher
                 await BackupCurrentLauncherAsync();
 
-                state.DownloadStatus = "Extracting update...";
+                state.DownloadStatus = $"Updating to {updateInfo.Version}... unpacking";
                 StateChanged?.Invoke(state);
 
                 // Extract to temp directory. The running executable cannot reliably replace itself,
@@ -288,10 +297,7 @@ namespace AstroHybrid.App.Services
                 }
                 Directory.CreateDirectory(extractDir);
 
-                ZipFile.ExtractToDirectory(tempFile, extractDir);
-
-                state.DownloadStatus = "Finishing update after launcher closes...";
-                StateChanged?.Invoke(state);
+                await Task.Run(() => ZipFile.ExtractToDirectory(tempFile, extractDir));
 
                 // Find the launcher executable in the extracted files
                 var launcherExe = FindLauncherExe(extractDir);
@@ -300,10 +306,12 @@ namespace AstroHybrid.App.Services
                     throw new InvalidOperationException("Launcher executable not found in update package");
                 }
 
-                await ScheduleUpdateInstallAsync(PackageRoot(extractDir));
-
-                state.DownloadStatus = "Update installed successfully";
+                // The files are copied in once the launcher has closed (it can't replace itself while
+                // running): the player presses "Restart launcher" (RestartToApplyUpdate).
+                _pendingUpdateSource = PackageRoot(extractDir);
                 state.IsInstalling = false;
+                state.IsReadyToRestart = true;
+                state.DownloadStatus = $"Update {updateInfo.Version} is ready. Restart the launcher to finish updating.";
                 StateChanged?.Invoke(state);
 
                 return true;
@@ -311,7 +319,7 @@ namespace AstroHybrid.App.Services
             catch (Exception ex)
             {
                 state.IsInstalling = false;
-                state.DownloadStatus = $"Installation failed: {ex.Message}";
+                state.DownloadStatus = $"Update failed while preparing: {ex.Message}. Press Update to try again.";
                 state.ErrorMessage = ex.Message;
                 StateChanged?.Invoke(state);
 
@@ -425,6 +433,19 @@ namespace AstroHybrid.App.Services
             await Task.CompletedTask;
         }
 
+        private string? _pendingUpdateSource;
+
+        public bool HasPendingUpdate => _pendingUpdateSource != null && Directory.Exists(_pendingUpdateSource);
+
+        // Closes the launcher; a small script copies the prepared update in place and starts the new
+        // launcher (apply-update.ps1).
+        public async Task RestartToApplyUpdateAsync()
+        {
+            if (!HasPendingUpdate)
+                throw new InvalidOperationException("No prepared update to install");
+            await ScheduleUpdateInstallAsync(_pendingUpdateSource!);
+        }
+
         private async Task ScheduleUpdateInstallAsync(string extractDir)
         {
             var appDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
@@ -438,20 +459,35 @@ namespace AstroHybrid.App.Services
             var escapedTemp = EscapePowerShellString(_tempDirectory);
             var script = $@"
 $ErrorActionPreference = 'Stop'
-$source = '{escapedSource}'
+$source = (Get-Item -LiteralPath '{escapedSource}').FullName
 $target = '{escapedTarget}'
 $launcher = '{escapedExe}'
 $temp = '{escapedTemp}'
+$log = Join-Path $temp 'apply-update.log'
 while (Get-Process -Id {currentPid} -ErrorAction SilentlyContinue) {{ Start-Sleep -Milliseconds 250 }}
+$failed = @()
 Get-ChildItem -LiteralPath $source -Recurse -File | ForEach-Object {{
     $relative = $_.FullName.Substring($source.Length).TrimStart('\')
     $destination = Join-Path $target $relative
     $directory = Split-Path -Parent $destination
-    if ($directory) {{ New-Item -ItemType Directory -Force -Path $directory | Out-Null }}
-    Copy-Item -LiteralPath $_.FullName -Destination $destination -Force
+    $copied = $false
+    for ($try = 0; $try -lt 20 -and -not $copied; $try++) {{
+        try {{
+            if ($directory) {{ New-Item -ItemType Directory -Force -Path $directory | Out-Null }}
+            Copy-Item -LiteralPath $_.FullName -Destination $destination -Force
+            $copied = $true
+        }} catch {{ Start-Sleep -Milliseconds 500 }}
+    }}
+    if (-not $copied) {{ $failed += $relative }}
 }}
-Remove-Item -LiteralPath $source -Recurse -Force -ErrorAction SilentlyContinue
-Remove-Item -LiteralPath (Join-Path $temp '*.zip') -Force -ErrorAction SilentlyContinue
+if ($failed.Count -eq 0) {{
+    Remove-Item -LiteralPath $source -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath (Join-Path $temp '*.zip') -Force -ErrorAction SilentlyContinue
+    ""$(Get-Date -Format s) update applied"" | Out-File -FilePath $log -Append
+}} else {{
+    # Keep the prepared files so the next Update finishes the job; never leave the player without a launcher.
+    ""$(Get-Date -Format s) could not replace (in use?): $($failed -join ', ')"" | Out-File -FilePath $log -Append
+}}
 Start-Process -FilePath $launcher
 Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
 ";
