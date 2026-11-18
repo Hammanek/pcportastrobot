@@ -341,8 +341,10 @@ namespace AstroHybrid.App.Services
             int language = settings.Language >= 0 && settings.Language <= 30 ? settings.Language : WindowsLanguage();
             env["ANYPS5_LANGUAGE"] = language.ToString();
 
-            // VSync: Vulkan FIFO presentation (the default is immediate presentation; skipped when DLSS Frame Generation is active).
-            if (settings.VSync && settings.FrameGenMode == 0) env["KYTY_GPU_PRESENT_MODE"] = "Fifo";
+            // VSync: Vulkan FIFO presentation (the default is immediate presentation). It also applies with DLSS
+            // Frame Generation: the generated frames go through the same swapchain, and forcing VSync in the
+            // NVIDIA driver (which only changes the present mode) removes the tearing there too (#15).
+            if (settings.VSync) env["KYTY_GPU_PRESENT_MODE"] = "Fifo";
 
             // Advanced page: the variables Run-AstroHybrid.bat reads (it keeps its defaults when unset).
             if (settings.HangWatchdog) env["ASTROHYBRID_HANG_WATCHDOG"] = "1";

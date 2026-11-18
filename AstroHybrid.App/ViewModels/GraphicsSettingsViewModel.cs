@@ -185,12 +185,11 @@ namespace AstroHybrid.App.ViewModels
             ? "Ray Tracing ON: runs AstroBot.exe with full GI probes and ray-traced lighting shaders (higher GPU load)."
             : "Ray Tracing OFF: runs AstroBot-NonRT-SoftAssert.exe for faster performance and steadier frame times.";
 
-        // NVIDIA frame generation presents the frames itself, and its VSync works only on D3D12 (Streamline
-        // DLSS-G guide, 22.5); this port draws with Vulkan, so VSync applies only with frame generation off.
-        public bool IsVSyncAvailable => _mainViewModel.Settings.FrameGenMode == 0;
-        public string VSyncNote => IsVSyncAvailable
+        // VSync sets the swapchain's present mode (FIFO), which frame generation presents through as well (#15).
+        public bool IsVSyncAvailable => true;
+        public string VSyncNote => _mainViewModel.Settings.FrameGenMode == 0
             ? "Locks presentation to your screen's refresh (no tearing)."
-            : "Not available with frame generation: NVIDIA frame generation can't use VSync with Vulkan. For no tearing, use a G-Sync / FreeSync screen (with G-Sync on, keep the on-screen target below its refresh rate), or turn frame generation off and tick VSync.";
+            : "Locks presentation to your screen's refresh (no tearing), generated frames included. Keep the frame generation target at or below your screen's refresh rate; with a G-Sync / FreeSync screen you can also leave VSync off.";
 
         // VSync
         public bool VSync
