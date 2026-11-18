@@ -300,7 +300,7 @@ namespace AstroHybrid.App.Services
                     throw new InvalidOperationException("Launcher executable not found in update package");
                 }
 
-                await ScheduleUpdateInstallAsync(extractDir);
+                await ScheduleUpdateInstallAsync(PackageRoot(extractDir));
 
                 state.DownloadStatus = "Update installed successfully";
                 state.IsInstalling = false;
@@ -375,6 +375,18 @@ namespace AstroHybrid.App.Services
             catch { }
 
             await Task.CompletedTask;
+        }
+
+        // Release zips up to 1.2.2 hold everything inside one folder (AstroBotPC-AstroHybrid-x.y.z\...).
+        // Copying that layout as-is put the update in a subfolder of the install and left the running
+        // launcher unchanged, so the update was offered again forever. The package root is that folder
+        // when the archive is a single folder with no loose files, otherwise the extract folder itself.
+        public static string PackageRoot(string extractDir)
+        {
+            var directories = Directory.GetDirectories(extractDir);
+            if (directories.Length == 1 && Directory.GetFiles(extractDir).Length == 0)
+                return directories[0];
+            return extractDir;
         }
 
         private string? FindLauncherExe(string extractDir)

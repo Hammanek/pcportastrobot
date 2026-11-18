@@ -67,7 +67,8 @@ AstroHybrid $Version - Astro Bot (PPSA21567) native PC port
 You need your own decrypted PS5 dump of Astro Bot (the folder with eboot.bin, sce_module and sce_sys).
 No game files are included here.
 
-1. Extract this folder somewhere with about 1 GB free (the game itself stays where your dump is).
+1. Extract the zip into a new, empty folder with about 1 GB free (the game itself stays where your
+   dump is). To update an existing install, use the app's Update button or extract over that folder.
 2. Start AstroHybrid.exe. Setup asks for your dump folder, then builds the game for Windows from it
    (about 2 minutes; your dump is only read, never changed).
 3. The app picks the best settings for your PC once; change them on the Graphics and Controller pages.
@@ -100,6 +101,9 @@ if ($bad) { $bad.FullName; throw 'game or session files found in the release' }
 $zip = Join-Path $Out "$name.zip"
 if (Test-Path $zip) { Remove-Item $zip }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-[IO.Compression.ZipFile]::CreateFromDirectory($stage, $zip, [IO.Compression.CompressionLevel]::Optimal, $true)
+# Files at the zip's root, no wrapper folder: the launcher's updater (1.2.2 and older) copies the archive's
+# paths as they are into the install, so a wrapper folder put the update in a subfolder and the launcher
+# stayed on the old version.
+[IO.Compression.ZipFile]::CreateFromDirectory($stage, $zip, [IO.Compression.CompressionLevel]::Optimal, $false)
 "{0}: {1:N0} files, {2:N1} MB staged, zip {3:N1} MB" -f $name, (Get-ChildItem $stage -Recurse -File).Count,
     ((Get-ChildItem $stage -Recurse -File | Measure-Object Length -Sum).Sum / 1MB), ((Get-Item $zip).Length / 1MB)
