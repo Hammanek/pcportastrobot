@@ -12,6 +12,9 @@
 #   WINEPREFIX              Wine prefix (default: ~/.wine)
 #   WINE                    wine binary (default: wine)
 #   ASTROHYBRID_DS_BT_FIX=0 skip the Bluetooth DualSense registry fix (#59)
+#   ASTROHYBRID_LSFG=2|3|4  frame generation with lsfg-vk (2x/3x/4x, default off; needs lsfg-vk 2.x)
+#   ASTROHYBRID_LSFG_FLOW   lsfg-vk flow scale 0.25..1.0 (default 0.5)
+#   ASTROHYBRID_LSFG_PERF=0 lsfg-vk quality mode (default: performance mode)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,6 +41,47 @@ fix_dualsense_bt() {
     done || true
 }
 
+# Frame generation through lsfg-vk (https://github.com/PancakeTAS/lsfg-vk), a Vulkan layer that uses
+# Lossless Scaling's frame generation; Kyty renders with Vulkan directly, so it hooks the game's swapchain
+# as is. Needs lsfg-vk 2.x installed and Lossless Scaling from Steam on the "lsfg-vk" beta branch (which
+# ships lsfg-vk.dll; the normal Lossless.dll fails with "Unable to find base shader"). Set only for this
+# run, so nothing else on the system is affected. Put this script inside gamescope, not the variables:
+# with LSFGVK_* exported before gamescope starts, gamescope (a Vulkan app) loads the layer as well.
+# Defaults from tests on an RX 9070 at 5K: flow 0.5 costs about half the GPU time of 1.0, and
+# performance mode lowered GPU load further (84% -> 70% busy at 2x).
+setup_lsfg() {
+    local mult="$1" dll="${LSFGVK_DLL_PATH:-}" root lib d
+    case "$mult" in 2|3|4) ;; *) echo "ASTROHYBRID_LSFG must be 2, 3 or 4" >&2; return 0 ;; esac
+    local layer found=""
+    for layer in /usr/share/vulkan/implicit_layer.d/*.json /etc/vulkan/implicit_layer.d/*.json \
+            "${XDG_DATA_HOME:-$HOME/.local/share}"/vulkan/implicit_layer.d/*.json; do
+        case "${layer##*/}" in *[Ll][Ss][Ff][Gg][Vv][Kk]*) [ -f "$layer" ] && found=1 ;; esac
+    done
+    if [ -z "$found" ]; then
+        echo "lsfg-vk 2.x is not installed; starting without frame generation" >&2
+        return 0
+    fi
+    if [ -z "$dll" ]; then
+        for root in "${XDG_DATA_HOME:-$HOME/.local/share}/Steam" "$HOME/.steam/steam" \
+                "$HOME/.var/app/com.valvesoftware.Steam/.local/share/Steam"; do
+            [ -f "$root/steamapps/libraryfolders.vdf" ] || continue
+            while read -r lib; do
+                d="$lib/steamapps/common/Lossless Scaling/lsfg-vk.dll"
+                if [ -f "$d" ]; then dll="$d"; break 2; fi
+            done < <(sed -nE 's/^[[:space:]]*"path"[[:space:]]*"(.*)"[[:space:]]*$/\1/p' "$root/steamapps/libraryfolders.vdf")
+        done
+    fi
+    if [ -z "$dll" ] || [ ! -f "$dll" ]; then
+        echo "lsfg-vk.dll not found: switch Lossless Scaling to the \"lsfg-vk\" beta branch in Steam" \
+             "(or set LSFGVK_DLL_PATH); starting without frame generation" >&2
+        return 0
+    fi
+    export LSFGVK_ENV=1 LSFGVK_DLL_PATH="$dll" LSFGVK_MULTIPLIER="$mult"
+    export LSFGVK_FLOW_SCALE="${ASTROHYBRID_LSFG_FLOW:-${LSFGVK_FLOW_SCALE:-0.5}}"
+    [ "${ASTROHYBRID_LSFG_PERF:-1}" = "0" ] || export LSFGVK_PERFORMANCE_MODE=1
+    echo "Frame generation: ${mult}x (lsfg-vk, flow ${LSFGVK_FLOW_SCALE})"
+}
+
 case "${1:-}" in
     --setup)
         [ -d "${2:-}" ] || { echo "usage: $0 --setup <folder with eboot.bin, sce_module, sce_sys>" >&2; exit 1; }
@@ -61,6 +105,7 @@ if [ ! -f "$ROOT/Build/RunHybrid/AstroBot.exe" ]; then
     exit 1
 fi
 [ "${ASTROHYBRID_DS_BT_FIX:-1}" = "0" ] || fix_dualsense_bt
+[ -z "${ASTROHYBRID_LSFG:-}" ] || [ "$ASTROHYBRID_LSFG" = "0" ] || setup_lsfg "$ASTROHYBRID_LSFG"
 
 # Real-time game speed, as LauncherService does: on when setup found the frame-rate block, with its address.
 features="$ROOT/Build/RunHybrid/astrohybrid-game.json"
