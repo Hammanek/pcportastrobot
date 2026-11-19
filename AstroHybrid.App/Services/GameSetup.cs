@@ -653,18 +653,20 @@ namespace AstroHybrid.App.Services
         {
             foreach (var (name, original, patched) in patches)
             {
-                var source = Hex(original);
-                var replacement = Hex(patched);
+                // "??" works as in ApplyAll: matches any byte and keeps the game's byte when writing.
+                var (source, anyByte) = HexPattern(original);
+                var (replacement, keep) = HexPattern(patched);
                 int count = 0;
                 for (int i = 0; i <= data.Length - source.Length; i++)
                 {
                     bool match = true;
                     for (int j = 0; j < source.Length; j++)
                     {
-                        if (data[i + j] != source[j]) { match = false; break; }
+                        if (!anyByte[j] && data[i + j] != source[j]) { match = false; break; }
                     }
                     if (!match) continue;
-                    Array.Copy(replacement, 0, data, i, replacement.Length);
+                    for (int j = 0; j < replacement.Length; j++)
+                        if (!keep[j]) data[i + j] = replacement[j];
                     count++;
                     log($"patch '{name}' at 0x{i:x}");
                     i += source.Length - 1;
