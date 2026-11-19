@@ -54,8 +54,9 @@ namespace AstroHybrid.App.Services
     //  2. eboot.bin and sce_module\*.prx unwrapped from their SELF containers (SelfUnwrapper, no keys);
     //  3. AnyPS5's relinker (tools\relinker.exe) turns the game code into AstroBot.exe (it also writes the
     //     *.guest.prx modules into app0\sce_module);
-    //  4. the faster-lighting and soft-assert byte patches, found by their exact bytes (each must occur
-    //     exactly once, else the patch is skipped), make AstroBot-NonRT.exe and AstroBot-NonRT-SoftAssert.exe.
+    //  4. the faster-lighting and soft-assert byte patches, found by their bytes with RIP-relative displacements
+    //     left open (each must occur exactly once, else the patch is skipped), make AstroBot-NonRT.exe and
+    //     AstroBot-NonRT-SoftAssert.exe.
     // On 01.019.000 this reproduces the development build byte for byte (OVERNIGHT.md 2026-11-13).
     public class GameSetup
     {
@@ -72,17 +73,20 @@ namespace AstroHybrid.App.Services
 
         public bool IsReleaseLayout => File.Exists(_relinker) && File.Exists(Path.Combine(_runHybrid, "kyty_gpu.dll"));
 
+        // "??" marks a RIP-relative displacement: it differs between game versions, matches any byte and is kept
+        // as the game has it. 01.018.000 has the same code as 01.019.000 with other displacements (non-tiled
+        // lighting at va 0x73b3bcf, the offset of the community 01.018.000 mod in non_tiled_lighting.toml).
         private static readonly (string Name, string Original, string Patched)[] FasterLightingPatches =
         {
-            ("non-tiled lighting", "4584F60F84F10800004531F64C8D3D3EBBA90141B430", "4584F6E9F2080000904531F64C8D3D3EBBA90141B430"),
+            ("non-tiled lighting", "4584F60F84F10800004531F64C8D3D????????41B430", "4584F6E9F2080000904531F64C8D3D????????41B430"),
             ("lighting shaders off", "0FB682A00700008887E4050000", "B80000000090908887E4050000"),
         };
 
         private static readonly (string Name, string Original, string Patched)[] SoftAssertPatches =
         {
             ("soft command-buffer assert",
-             "554889e5488d3ded6fbb07488d0dc47fc2074c8d052299e407be1f000000ba0100000031c0e8660eb6ff85c07402cd42488d3d3c54d20731c0e88235fbffcd4131c05dc3",
-             "554889e5eb2a3ded6fbb07488d0dc47fc2074c8d052299e407be1f000000ba0100000031c0e8660eb6ff85c07402cd42488d3d3c54d20731c0e88235fbff909031c05dc3"),
+             "554889e5488d3d????????488d0d????????4c8d05????????be1f000000ba0100000031c0e8660eb6ff85c07402cd42488d3d????????31c0e88235fbffcd4131c05dc3",
+             "554889e5eb2a3d????????488d0d????????4c8d05????????be1f000000ba0100000031c0e8660eb6ff85c07402cd42488d3d????????31c0e88235fbff909031c05dc3"),
         };
 
         // Astro Bot's internal render aspect constant: 16:9 -> 2.3888889 (21:9).
@@ -583,7 +587,8 @@ namespace AstroHybrid.App.Services
             return false;
         }
 
-        private static int FindUnique(byte[] data, byte[] pattern, out int count)
+        // anyByte[j] = true lets position j match any byte (pattern[0] must be a real byte).
+        private static int FindUnique(byte[] data, byte[] pattern, out int count, bool[]? anyByte = null)
         {
             count = 0;
             int found = -1;
@@ -591,7 +596,7 @@ namespace AstroHybrid.App.Services
             {
                 if (data[i] != pattern[0]) continue;
                 int j = 1;
-                while (j < pattern.Length && data[i + j] == pattern[j]) j++;
+                while (j < pattern.Length && ((anyByte != null && anyByte[j]) || data[i + j] == pattern[j])) j++;
                 if (j == pattern.Length)
                 {
                     count++;
@@ -604,12 +609,27 @@ namespace AstroHybrid.App.Services
 
         private static byte[] Hex(string hex) => Enumerable.Range(0, hex.Length / 2).Select(i => Convert.ToByte(hex.Substring(i * 2, 2), 16)).ToArray();
 
+        // Hex with "??" for any byte: returns the bytes (0 where "??") and which positions were "??".
+        private static (byte[] Bytes, bool[] AnyByte) HexPattern(string hex)
+        {
+            var bytes = new byte[hex.Length / 2];
+            var anyByte = new bool[bytes.Length];
+            for (int i = 0; i < bytes.Length; i++)
+            {
+                var pair = hex.Substring(i * 2, 2);
+                if (pair == "??") anyByte[i] = true;
+                else bytes[i] = Convert.ToByte(pair, 16);
+            }
+            return (bytes, anyByte);
+        }
+
         private static bool ApplyAll(byte[] data, (string Name, string Original, string Patched)[] patches, Action<string> log)
         {
             var offsets = new List<int>();
             foreach (var (name, original, _) in patches)
             {
-                int at = FindUnique(data, Hex(original), out int count);
+                var (pattern, anyByte) = HexPattern(original);
+                int at = FindUnique(data, pattern, out int count, anyByte);
                 if (at < 0)
                 {
                     log($"patch '{name}': found {count} times, skipped (this game version differs)");
@@ -619,8 +639,9 @@ namespace AstroHybrid.App.Services
             }
             for (int i = 0; i < patches.Length; i++)
             {
-                var bytes = Hex(patches[i].Patched);
-                Array.Copy(bytes, 0, data, offsets[i], bytes.Length);
+                var (bytes, keep) = HexPattern(patches[i].Patched);
+                for (int j = 0; j < bytes.Length; j++)
+                    if (!keep[j]) data[offsets[i] + j] = bytes[j];
                 log($"patch '{patches[i].Name}' at 0x{offsets[i]:x}");
             }
             return true;
