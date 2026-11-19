@@ -80,9 +80,31 @@
 
                     <TextBlock Text="{Binding MotionNote}" Style="{StaticResource BodyTextStyle}" TextWrapping="Wrap" Margin="0,10,0,0"/>
 
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Style="{StaticResource BodyTextStyle}" Text="Right-stick tilt" VerticalAlignment="Center" Width="150"/>
+                        <ComboBox Grid.Row="0" Grid.Column="1"
+                                  ItemsSource="{Binding TiltModeLabels}"
+                                  SelectedIndex="{Binding TiltModeIndex}"
+                                  Style="{StaticResource ModernComboBoxStyle}" HorizontalAlignment="Left" Width="300"/>
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Style="{StaticResource BodyTextStyle}" Text="Tilt strength" VerticalAlignment="Center" Width="150" Margin="0,10,0,0"/>
+                        <ComboBox Grid.Row="1" Grid.Column="1"
+                                  ItemsSource="{Binding TiltStrengthLabels}"
+                                  SelectedIndex="{Binding TiltStrengthIndex}"
+                                  Style="{StaticResource ModernComboBoxStyle}" HorizontalAlignment="Left" Width="300" Margin="0,10,0,0"/>
+                    </Grid>
+
                     <TextBlock Style="{StaticResource MutedTextStyle}" Margin="0,8,0,0" TextWrapping="Wrap">
-                        DualSense and Switch Pro controllers have built-in motion sensors.
-                        Xbox and generic pads: press View/Back to enable tilt with right stick, press again to disable.
+                        DualSense and Switch Pro controllers have built-in motion sensors. The tilt settings apply to Xbox and generic pads, which tilt with the right stick; a gentler strength helps where the game wants small, steady movements.
                     </TextBlock>
                 </StackPanel>
             </Border>
@@ -94,7 +116,11 @@
 
                     <TextBlock Text="{Binding TriggerNote}" Style="{StaticResource BodyTextStyle}" TextWrapping="Wrap" Margin="0,10,0,0"/>
 
-                    <TextBlock Text="Speaker audio and HD haptics automatically use the connected DualSense USB or Bluetooth path." Style="{StaticResource MutedTextStyle}" Margin="0,10,0,0" TextWrapping="Wrap"/>
+                    <CheckBox Content="Play sounds on the DualSense speaker"
+                              IsChecked="{Binding DualSenseSpeaker}"
+                              Style="{StaticResource ModernCheckBoxStyle}" Margin="0,10,0,0"/>
+
+                    <TextBlock Text="Speaker audio and HD haptics automatically use the connected DualSense USB or Bluetooth path. Untick the speaker to keep the controller silent (for example at night with headphones); haptics stay on." Style="{StaticResource MutedTextStyle}" Margin="0,10,0,0" TextWrapping="Wrap"/>
                 </StackPanel>
             </Border>
 

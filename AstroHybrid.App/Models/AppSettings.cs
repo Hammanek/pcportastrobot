@@ -60,6 +60,20 @@ namespace AstroHybrid.App.Models
         [JsonPropertyName("switchboost")]
         public bool SwitchBoost { get; set; } = true;
 
+        // Xbox/generic pads: View/Back tilts with the right stick while held (false, the default since
+        // 1.2.4, #128) or toggles tilt on and off (true, the behaviour before 1.2.4, #146).
+        [JsonPropertyName("tiltToggle")]
+        public bool TiltToggle { get; set; } = false;
+
+        // Right-stick tilt strength in percent of the default 45 degrees at full deflection (25-200, #146).
+        [JsonPropertyName("tiltStrength")]
+        public int TiltStrength { get; set; } = 100;
+
+        // DualSense speaker: the sounds the game plays on the controller's own speaker (#143). Off keeps
+        // them silent (not moved to the PC speakers).
+        [JsonPropertyName("dsSpeaker")]
+        public bool DualSenseSpeaker { get; set; } = true;
+
         // Installation settings
         [JsonPropertyName("installPath")]
         public string? InstallPath { get; set; }

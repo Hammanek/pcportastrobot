@@ -93,7 +93,65 @@ namespace AstroHybrid.App.ViewModels
             }
         }
 
-        public string MotionNote => "Motion sensors (shake/tilt) work on DualSense and Switch Pro controllers. Xbox and generic pads: press View/Back to tilt with right stick, press again to stop.";
+        // Xbox/generic pads: how View/Back turns the right-stick tilt on (#146).
+        public string[] TiltModeLabels => new[] { "Hold View/Back to tilt", "Press View/Back to turn tilt on/off" };
+
+        public int TiltModeIndex
+        {
+            get => _mainViewModel.Settings.TiltToggle ? 1 : 0;
+            set
+            {
+                bool toggle = value == 1;
+                if (_mainViewModel.Settings.TiltToggle != toggle)
+                {
+                    _mainViewModel.Settings.TiltToggle = toggle;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(MotionNote));
+                    _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.Settings));
+                }
+            }
+        }
+
+        public string[] TiltStrengthLabels => new[] { "Very gentle (25%)", "Gentle (50%)", "Reduced (75%)", "Default (100%)", "Strong (150%)", "Very strong (200%)" };
+        static readonly int[] TiltStrengthPresets = { 25, 50, 75, 100, 150, 200 };
+
+        public int TiltStrengthIndex
+        {
+            get
+            {
+                int index = Array.IndexOf(TiltStrengthPresets, _mainViewModel.Settings.TiltStrength);
+                return index >= 0 ? index : 3;
+            }
+            set
+            {
+                if (value < 0 || value >= TiltStrengthPresets.Length) return;
+                if (_mainViewModel.Settings.TiltStrength != TiltStrengthPresets[value])
+                {
+                    _mainViewModel.Settings.TiltStrength = TiltStrengthPresets[value];
+                    OnPropertyChanged();
+                    _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.Settings));
+                }
+            }
+        }
+
+        // DualSense speaker on or off (#143).
+        public bool DualSenseSpeaker
+        {
+            get => _mainViewModel.Settings.DualSenseSpeaker;
+            set
+            {
+                if (_mainViewModel.Settings.DualSenseSpeaker != value)
+                {
+                    _mainViewModel.Settings.DualSenseSpeaker = value;
+                    OnPropertyChanged();
+                    _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.Settings));
+                }
+            }
+        }
+
+        public string MotionNote => _mainViewModel.Settings.TiltToggle
+            ? "Motion sensors (shake/tilt) work on DualSense and Switch Pro controllers. Xbox and generic pads: press View/Back to tilt with the right stick, press it again to get the camera back."
+            : "Motion sensors (shake/tilt) work on DualSense and Switch Pro controllers. Xbox and generic pads: hold View/Back and move the right stick to tilt; release it to get the camera back.";
 
         public string VibrationNote => "Vibration sets Xbox, Switch and other pads; a DualSense keeps its own haptics. " +
                                       "Pick Custom to type any strength from 0 to 200%. A very light setting can be too weak for a third-party Switch-style pad, which then needs 'Stronger vibration' or a higher strength.";

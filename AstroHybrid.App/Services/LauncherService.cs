@@ -354,6 +354,15 @@ namespace AstroHybrid.App.Services
                 env["ASTROHYBRID_PRIORITY"] = settings.Priority;
             if (settings.CpPriority == 1 || settings.CpPriority == 2) env["KYTY_CP_PRIORITY"] = settings.CpPriority.ToString();
             env["ASTROHYBRID_PAD_MOTION"] = settings.MotionControls ? "1" : "0";
+            // Right-stick tilt on Xbox/generic pads: toggle instead of hold, and its strength (#146).
+            if (settings.TiltToggle) env["ASTROHYBRID_TILT_TOGGLE"] = "1";
+            env["ASTROHYBRID_TILT_STRENGTH"] = Math.Max(25, Math.Min(200, settings.TiltStrength)).ToString();
+            // DualSense speaker off: the controller speaker's sounds are dropped, wired or Bluetooth (#143).
+            if (!settings.DualSenseSpeaker)
+            {
+                env["ASTROHYBRID_DS_SPEAKER"] = "0";
+                env["ASTROHYBRID_DS_WIRELESS_SPEAKER"] = "0";
+            }
             if (!settings.TriggerState) env["APS5_PAD_TRIGGER_STATE"] = "0";
             if (settings.SkipIntro) env["ASTROHYBRID_SKIP_INTRO"] = "1";
 
