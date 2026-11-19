@@ -10,7 +10,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-$name = "AstroBotPC-AstroHybrid-$Version"
+$name = "AstroBotPC-AstroHybrid-$Version-Windows-x64"
 $stage = Join-Path $Out $name
 if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
 $run = Join-Path $stage 'Build\RunHybrid'
@@ -28,6 +28,7 @@ foreach ($extraBat in 'Run-AstroHybrid-DLSS.bat', 'Run-AstroHybrid-FG.bat') {
     $batPath = Join-Path $root $extraBat
     if (Test-Path $batPath) { Copy-Item $batPath $stage }
 }
+Copy-Item (Join-Path $root 'recomplauncher.json') $stage
 
 # AnyPS5's relinker (needs only the Universal C runtime that ships with Windows 10/11).
 Copy-Item (Join-Path $root 'Build\anyps5\core\relinker\relinker.exe') (Join-Path $stage 'tools')
