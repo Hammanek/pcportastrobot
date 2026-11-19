@@ -366,8 +366,9 @@ namespace AstroHybrid.App.Services
             if (!settings.TriggerState) env["APS5_PAD_TRIGGER_STATE"] = "0";
             if (settings.SkipIntro) env["ASTROHYBRID_SKIP_INTRO"] = "1";
 
-            // Cloth/blanket/bubble stability (#30, #35): keep commit epoch fast path off and enable buffer range fixes.
-            env["ASTROHYBRID_COMMIT_EPOCH_FASTPATH"] = "0";
+            // Cloth/blanket/bubble stability (#30, #35): the commit epoch fast path only for read-only
+            // bindings (writable ones stay on the full check), plus the buffer range fixes.
+            env["ASTROHYBRID_COMMIT_EPOCH_FASTPATH"] = "read";
             env["KYTY_BUFFER_RANGE_FIXES"] = "1";
             env["APS5_SAVEDATA_TRANSFER_FALLBACK"] = "1";
 
