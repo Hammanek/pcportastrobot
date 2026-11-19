@@ -6,7 +6,10 @@ rem   python -I Tools\hybrid\make_run_hybrid.py
 setlocal
 set "ROOT=%~dp0"
 if not exist "%ROOT%Build\RunHybrid\AstroBot.exe" (
-  echo Build\RunHybrid not found. Run: python -I Tools\hybrid\make_run_hybrid.py
+  rem Issue #153: a third-party launcher started the game before AstroHybrid's setup ran.
+  echo The game is not set up yet: Build\RunHybrid\AstroBot.exe was not found next to this script.
+  echo Open AstroHybrid.exe in this folder and run its setup ^(pick your game dump^) first, then start the game again.
+  echo Developers: python -I Tools\hybrid\make_run_hybrid.py builds it from a source checkout.
   exit /b 1
 )
 set APS5_GPU_ENGINE=kyty
