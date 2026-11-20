@@ -34,6 +34,9 @@ if exist "%ROOT%Build\RunHybrid\u59-preset.cmd" call "%ROOT%Build\RunHybrid\u59-
 rem Dump folders setup could not link into app0 (an exFAT, FAT32 or network drive, issue #135): the game
 rem reads them from the dump through AnyPS5's path aliases (APS5_PATH_ALIASES, one line written by setup).
 if not defined APS5_PATH_ALIASES if exist "%ROOT%Build\RunHybrid\app0-aliases.txt" set /p APS5_PATH_ALIASES=<"%ROOT%Build\RunHybrid\app0-aliases.txt"
+rem Mods (#22): a file in the "mods" folder next to AstroHybrid.exe replaces the game file with the same
+rem path below the game folder, e.g. mods\data\prein\levels\...; the game dump itself is never changed.
+if not defined APS5_PATH_OVERLAYS if exist "%ROOT%mods\" set "APS5_PATH_OVERLAYS=/app0=%ROOT%mods"
 rem Prefer the soft-assert NonRT build for the command-buffer overflow path (issue #25).
 rem Callers can still override ASTROHYBRID_EXE explicitly; older runtimes fall back safely.
 if not defined ASTROHYBRID_EXE if exist "%ROOT%Build\RunHybrid\AstroBot-NonRT-SoftAssert.exe" set ASTROHYBRID_EXE=AstroBot-NonRT-SoftAssert.exe
