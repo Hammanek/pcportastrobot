@@ -74,6 +74,11 @@ namespace AstroHybrid.App.Models
         [JsonPropertyName("dsSpeaker")]
         public bool DualSenseSpeaker { get; set; } = true;
 
+        // DualSense adaptive triggers: resistance and vibration in percent of what the game asks for
+        // (0 = off, 100 = as the game asks; #160).
+        [JsonPropertyName("triggerStrength")]
+        public int TriggerStrength { get; set; } = 100;
+
         // Installation settings
         [JsonPropertyName("installPath")]
         public string? InstallPath { get; set; }

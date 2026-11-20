@@ -116,6 +116,18 @@
 
                     <TextBlock Text="{Binding TriggerNote}" Style="{StaticResource BodyTextStyle}" TextWrapping="Wrap" Margin="0,10,0,0"/>
 
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Style="{StaticResource BodyTextStyle}" Text="Adaptive triggers" VerticalAlignment="Center" Width="150"/>
+                        <ComboBox Grid.Column="1"
+                                  ItemsSource="{Binding TriggerStrengthLabels}"
+                                  SelectedIndex="{Binding TriggerStrengthIndex}"
+                                  Style="{StaticResource ModernComboBoxStyle}" HorizontalAlignment="Left" Width="300"/>
+                    </Grid>
+
                     <CheckBox Content="Play sounds on the DualSense speaker"
                               IsChecked="{Binding DualSenseSpeaker}"
                               Style="{StaticResource ModernCheckBoxStyle}" Margin="0,10,0,0"/>

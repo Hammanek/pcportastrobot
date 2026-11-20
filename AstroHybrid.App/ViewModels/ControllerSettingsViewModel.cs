@@ -134,6 +134,29 @@ namespace AstroHybrid.App.ViewModels
             }
         }
 
+        // DualSense adaptive triggers: off, lighter, or as the game asks (#160).
+        public string[] TriggerStrengthLabels => new[] { "Off", "Light (33%)", "Medium (66%)", "Full (as the game asks)" };
+        static readonly int[] TriggerStrengthPresets = { 0, 33, 66, 100 };
+
+        public int TriggerStrengthIndex
+        {
+            get
+            {
+                int index = Array.IndexOf(TriggerStrengthPresets, _mainViewModel.Settings.TriggerStrength);
+                return index >= 0 ? index : TriggerStrengthPresets.Length - 1;
+            }
+            set
+            {
+                if (value < 0 || value >= TriggerStrengthPresets.Length) return;
+                if (_mainViewModel.Settings.TriggerStrength != TriggerStrengthPresets[value])
+                {
+                    _mainViewModel.Settings.TriggerStrength = TriggerStrengthPresets[value];
+                    OnPropertyChanged();
+                    _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.Settings));
+                }
+            }
+        }
+
         // DualSense speaker on or off (#143).
         public bool DualSenseSpeaker
         {

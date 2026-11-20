@@ -384,6 +384,8 @@ namespace AstroHybrid.App.Services
             // Right-stick tilt on Xbox/generic pads: toggle instead of hold, and its strength (#146).
             if (settings.TiltToggle) env["ASTROHYBRID_TILT_TOGGLE"] = "1";
             env["ASTROHYBRID_TILT_STRENGTH"] = Math.Max(25, Math.Min(200, settings.TiltStrength)).ToString();
+            // DualSense adaptive triggers: resistance and vibration in percent, 0 = off (#160).
+            env["ASTROHYBRID_TRIGGER_STRENGTH"] = Math.Max(0, Math.Min(100, settings.TriggerStrength)).ToString();
             // DualSense speaker off: the controller speaker's sounds are dropped, wired or Bluetooth (#143).
             if (!settings.DualSenseSpeaker)
             {
