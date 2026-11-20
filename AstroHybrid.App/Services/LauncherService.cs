@@ -193,9 +193,10 @@ namespace AstroHybrid.App.Services
         {
             var env = new Dictionary<string, string>();
 
-            // Graphics card (issue #24): an explicit choice names the card for the AnyPS5 renderer.
-            // kyty_gpu.dll (Run-AstroHybrid.bat) prefers a discrete card over integrated graphics by
-            // itself, so an automatic choice passes nothing and the renderer keeps that preference.
+            // Graphics card (issue #24): an explicit choice names the card, for kyty_gpu.dll (Kyty patch
+            // 0047) and the AnyPS5 renderer. A name, not an index: this list comes from Windows, whose
+            // order need not be Vulkan's. An automatic choice passes nothing, and kyty_gpu.dll keeps its
+            // own preference (a discrete card over integrated graphics).
             var gpu = hardware?.SelectedGpu;
             if (hardware != null && hardware.SelectedGpuIndex >= 0 && gpu != null)
             {
