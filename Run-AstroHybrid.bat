@@ -105,6 +105,54 @@ if not defined ASTROHYBRID_DEBUG_LAYERS set "ASTROHYBRID_DEBUG_LAYERS=0"
 rem Force single-threaded command submission for debugging command buffer issues (#25)
 if not defined ASTROHYBRID_SINGLE_THREADED_SUBMIT set "ASTROHYBRID_SINGLE_THREADED_SUBMIT=0"
 
+rem Safe mode: disable experimental features
+if "%ASTROHYBRID_SAFE_MODE%"=="1" (
+    set "ASTROHYBRID_TDR_WORKAROUND=0"
+    set "ASTROHYBRID_FAST_LOAD=0"
+    set "ASTROHYBRID_SHADER_PRECOMPILE=0"
+    set "ASTROHYBRID_PIPELINE_CACHE_WARMUP=0"
+    set "ASTROHYBRID_PHYSICS_SUBSTEP=0"
+    set "ASTROHYBRID_OPT_1=0"
+    set "ASTROHYBRID_OPT_2=0"
+    set "KYTY_HANG_WATCHDOG=0"
+    echo [Safe Mode] Disabled experimental features
+)
+
+rem Debug validation layers: enable Vulkan validation layers for debugging
+if "%ASTROHYBRID_DEBUG_LAYERS%"=="1" (
+    set "VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation"
+    set "VK_LAYER_KHRONOS_validation_ENABLE=1"
+    set "VK_LAYER_KHRONOS_validation_DEBUG_ACTION=VK_DBG_LAYER_ACTION_LOG_MSG,VK_DBG_LAYER_ACTION_BREAK"
+    echo [Debug] Vulkan validation layers enabled
+)
+
+rem Single-threaded submit for debugging command buffer issues
+if "%ASTROHYBRID_SINGLE_THREADED_SUBMIT%"=="1" (
+    set "KYTY_SUBMIT_MIN_INTERVAL_US=0"
+    set "KYTY_GFX_SLICE_DRAWS=0"
+    echo [Debug] Single-threaded command submission enabled
+)
+
+rem Clear shader cache on startup for stale cache issues (#161, #157)
+if "%ASTROHYBRID_CLEAR_SHADER_CACHE_ON_STARTUP%"=="1" (
+    if exist "%ROOT%Build\RunHybrid\shader_cache.bin" del "%ROOT%Build\RunHybrid\shader_cache.bin"
+    if exist "%ROOT%Build\RunHybrid\pipeline_cache.bin" del "%ROOT%Build\RunHybrid\pipeline_cache.bin"
+    if exist "%ROOT%Build\RunHybrid\cache" rmdir /s /q "%ROOT%Build\RunHybrid\cache" 2>nul
+    echo [Startup] Shader/pipeline cache cleared
+)
+
+rem Memory pressure handling for high VRAM usage (#161, #157)
+if "%ASTROHYBRID_MEMORY_PRESSURE_HANDLING%"=="1" (
+    rem Set VRAM limit to 90% of available if not explicitly set
+    if "%ASTROHYBRID_VRAM_LIMIT_MB%"=="0" (
+        rem This would need a tool to detect GPU VRAM; for now set a reasonable default
+        set "ASTROHYBRID_VRAM_LIMIT_MB=6144"
+    )
+    rem Enable texture streaming quality reduction under pressure
+    set "ASTROHYBRID_TEXTURE_STREAMING_QUALITY=1"
+    echo [Memory] Pressure handling enabled, VRAM limit: %ASTROHYBRID_VRAM_LIMIT_MB% MB
+)
+
 rem Draw-prep helper priority (A/B 2026-11-07 22:33-22:43, OVERNIGHT.md): with other programs running, a
 rem helper that holds the CP's next draw was pre-empted and the CP spun 3-4 ms per frame; helpers at the
 rem CP's priority (2) with short spins cut that to 0.4-0.7 ms and CP time by ~1.2 ms per frame.

@@ -56,6 +56,12 @@ namespace AstroHybrid.App.Services
             settings.LastLaunched = DateTime.Now;
             _settingsManager.Save(settings);
 
+            // Clear shader cache on startup if enabled (#161, #157)
+            if (settings.ClearShaderCacheOnStartup)
+            {
+                ClearShaderCache(runHybridPath);
+            }
+
             // Build environment variables from settings
             var envVars = BuildEnvironmentVariables(settings, hardware);
 
@@ -314,6 +320,37 @@ namespace AstroHybrid.App.Services
             }
             catch { }
             return false; // No working audio device found
+        }
+
+        private void ClearShaderCache(string runHybridPath)
+        {
+            try
+            {
+                var cacheFiles = new[]
+                {
+                    Path.Combine(runHybridPath, "shader_cache.bin"),
+                    Path.Combine(runHybridPath, "pipeline_cache.bin"),
+                    Path.Combine(runHybridPath, "cache")
+                };
+
+                foreach (var cachePath in cacheFiles)
+                {
+                    if (File.Exists(cachePath))
+                    {
+                        File.Delete(cachePath);
+                        AppendDebugLog($"Cleared shader cache file: {cachePath}");
+                    }
+                    else if (Directory.Exists(cachePath))
+                    {
+                        Directory.Delete(cachePath, true);
+                        AppendDebugLog($"Cleared shader cache directory: {cachePath}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendDebugLog($"Failed to clear shader cache: {ex.Message}");
+            }
         }
 
         private bool IsVulkanSupported()
@@ -898,14 +935,27 @@ namespace AstroHybrid.App.Services
             env["KYTY_BUFFER_RANGE_FIXES"] = "1";
             env["APS5_SAVEDATA_TRANSFER_FALLBACK"] = "1";
 
-            // New stability and debugging options
-            env["ASTROHYBRID_HANG_WATCHDOG_INTERVAL"] = "5000";
-            env["ASTROHYBRID_TEXTURE_STREAMING_QUALITY"] = "2";
-            env["ASTROHYBRID_CLEAR_SHADER_CACHE_ON_STARTUP"] = "0";
-            env["ASTROHYBRID_MEMORY_PRESSURE_HANDLING"] = "1";
-            env["ASTROHYBRID_SAFE_MODE"] = "0";
-            env["ASTROHYBRID_DEBUG_LAYERS"] = "0";
-            env["ASTROHYBRID_SINGLE_THREADED_SUBMIT"] = "0";
+            // New stability and debugging options (from settings)
+            env["ASTROHYBRID_HANG_WATCHDOG_INTERVAL"] = settings.HangWatchdogInterval.ToString();
+            env["ASTROHYBRID_TEXTURE_STREAMING_QUALITY"] = Math.Clamp(settings.TextureStreamingQuality, 0, 3).ToString();
+            env["ASTROHYBRID_CLEAR_SHADER_CACHE_ON_STARTUP"] = settings.ClearShaderCacheOnStartup ? "1" : "0";
+            env["ASTROHYBRID_MEMORY_PRESSURE_HANDLING"] = settings.MemoryPressureHandling ? "1" : "0";
+            env["ASTROHYBRID_SAFE_MODE"] = settings.SafeMode ? "1" : "0";
+            env["ASTROHYBRID_DEBUG_LAYERS"] = settings.DebugLayers ? "1" : "0";
+            env["ASTROHYBRID_SINGLE_THREADED_SUBMIT"] = settings.SingleThreadedSubmit ? "1" : "0";
+
+            // Safe mode: disable experimental features
+            if (settings.SafeMode)
+            {
+                env["ASTROHYBRID_TDR_WORKAROUND"] = "0";
+                env["ASTROHYBRID_FAST_LOAD"] = "0";
+                env["ASTROHYBRID_SHADER_PRECOMPILE"] = "0";
+                env["ASTROHYBRID_PIPELINE_CACHE_WARMUP"] = "0";
+                env["ASTROHYBRID_PHYSICS_SUBSTEP"] = "0";
+                env["ASTROHYBRID_OPT_1"] = "0";
+                env["ASTROHYBRID_OPT_2"] = "0";
+                env["KYTY_HANG_WATCHDOG"] = "0";
+            }
 
             return env;
         }

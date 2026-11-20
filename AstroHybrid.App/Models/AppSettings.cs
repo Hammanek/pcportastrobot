@@ -134,6 +134,28 @@ namespace AstroHybrid.App.Models
         [JsonPropertyName("skipIntro")]
         public bool SkipIntro { get; set; } = false;
 
+        // New stability and debugging settings
+        [JsonPropertyName("safeMode")]
+        public bool SafeMode { get; set; } = false;
+
+        [JsonPropertyName("debugLayers")]
+        public bool DebugLayers { get; set; } = false;
+
+        [JsonPropertyName("singleThreadedSubmit")]
+        public bool SingleThreadedSubmit { get; set; } = false;
+
+        [JsonPropertyName("clearShaderCacheOnStartup")]
+        public bool ClearShaderCacheOnStartup { get; set; } = false;
+
+        [JsonPropertyName("textureStreamingQuality")]
+        public int TextureStreamingQuality { get; set; } = 2; // 0-3, higher = better quality
+
+        [JsonPropertyName("memoryPressureHandling")]
+        public bool MemoryPressureHandling { get; set; } = true;
+
+        [JsonPropertyName("hangWatchdogInterval")]
+        public int HangWatchdogInterval { get; set; } = 5000; // ms
+
         // Set by the setup wizard: the main window picks the best settings for this PC once.
         [JsonPropertyName("applyBestOnStart")]
         public bool ApplyBestOnStart { get; set; } = false;
@@ -211,6 +233,10 @@ namespace AstroHybrid.App.Models
             if (!supportsDlss) Upscale = 0;
             if (!supportsFrameGeneration || Upscale == 0) FrameGenMode = 0;
             if (!supportsReflex) LowLatency = false;
+
+            if (TextureStreamingQuality < 0 || TextureStreamingQuality > 3) TextureStreamingQuality = 2;
+            if (HangWatchdogInterval < 1000) HangWatchdogInterval = 1000;
+            if (HangWatchdogInterval > 60000) HangWatchdogInterval = 60000;
         }
     }
 
