@@ -49,9 +49,10 @@ Get-ChildItem (Join-Path $src 'libs') -File | ForEach-Object {
 }
 $runtime = 'kyty_gpu.dll', 'astrohybrid_host.dll', 'u59-preset.cmd', 'u59-preset.json',
            'nvngx_dlss.dll', 'nvngx_dlssg.dll', 'NvLowLatencyVk.dll',
-           'sl.interposer.dll', 'sl.common.dll', 'sl.dlss_g.dll', 'sl.reflex.dll', 'sl.pcl.dll'
+           'sl.interposer.dll', 'sl.common.dll', 'sl.dlss_g.dll', 'sl.reflex.dll', 'sl.pcl.dll',
+           'amd_fidelityfx_loader_vk.dll', 'amd_fidelityfx_upscaler_vk.dll'
 foreach ($f in $runtime) { Copy-Item (Join-Path $src $f) $run }
-foreach ($f in 'nvngx_dlss.license.txt', 'streamline.license.txt', 'reflex.license.txt') {
+foreach ($f in 'nvngx_dlss.license.txt', 'streamline.license.txt', 'reflex.license.txt', 'amd_fsr.license.txt') {
     Copy-Item (Join-Path $src $f) $run
     Copy-Item (Join-Path $src $f) (Join-Path $stage 'licenses')
 }
@@ -93,8 +94,8 @@ Intel processors: setup converts the game's AMD-only instructions for you (updat
 the app offers to convert the game again at its first start).
 Language and VSync: Advanced and Graphics pages.
 
-Not affiliated with Sony Interactive Entertainment, Team ASOBI or NVIDIA. NVIDIA runtime files and the
-Noto fonts (SIL Open Font License) are redistributed under the licences in the licenses folder.
+Not affiliated with Sony Interactive Entertainment, Team ASOBI, NVIDIA or AMD. NVIDIA and AMD FSR runtime
+files and the Noto fonts (SIL Open Font License) are redistributed under the licences in the licenses folder.
 "@ | Set-Content -Encoding UTF8 (Join-Path $stage 'README.txt')
 
 # Guard: nothing from a game dump or a play session.

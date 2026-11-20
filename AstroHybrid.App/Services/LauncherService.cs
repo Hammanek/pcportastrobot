@@ -312,12 +312,19 @@ namespace AstroHybrid.App.Services
 
             // NVIDIA options, as AstroBotLauncher.cs: DLSS and frame generation need the CUDA address
             // window and the NVIDIA runtime files next to the game.
-            if (settings.Upscale != 0 || settings.FrameGenMode != 0)
+            if (settings.Upscale == 1 || settings.FrameGenMode != 0)
             {
                 env["ASTROHYBRID_CUDA_HOLE"] = "1";
                 env["ASTROHYBRID_DLSS_PATH"] = Path.Combine(_rootDirectory, "Build", "RunHybrid");
             }
-            if (settings.Upscale != 0)
+            // AMD FSR (AMD FSR SDK 2.4 runtime next to the game): the renderer picks FSR 4 where the card
+            // supports it, else FSR 3.1, else FSR 2.
+            if (settings.Upscale == 2)
+            {
+                env["ASTROHYBRID_FSR"] = "1";
+                env["ASTROHYBRID_FSR_PATH"] = Path.Combine(_rootDirectory, "Build", "RunHybrid");
+            }
+            if (settings.Upscale == 1)
             {
                 env["ASTROHYBRID_DLSS"] = "1";
                 var dlssQuality = new[] { "quality", "balanced", "performance", "dlaa" };

@@ -64,7 +64,7 @@ namespace AstroHybrid.App.ViewModels
             }
         }
 
-        public string ProfileUpscale => _mainViewModel.Settings.Upscale != 0 ? "DLSS" : "Native Scale";
+        public string ProfileUpscale => _mainViewModel.Settings.Upscale == 1 ? "DLSS" : _mainViewModel.Settings.Upscale == 2 ? "AMD FSR" : "Native Scale";
 
         public string ProfileFrameGen
         {
@@ -118,8 +118,10 @@ namespace AstroHybrid.App.ViewModels
 
             parts.Add(_mainViewModel.Settings.Lighting == 1 ? "RTX ON" : "RTX OFF (Non-RT)");
 
-            if (_mainViewModel.Settings.Upscale != 0)
+            if (_mainViewModel.Settings.Upscale == 1)
                 parts.Add("DLSS");
+            else if (_mainViewModel.Settings.Upscale == 2)
+                parts.Add("AMD FSR");
 
             if (_mainViewModel.Settings.FrameGenMode != 0)
             {

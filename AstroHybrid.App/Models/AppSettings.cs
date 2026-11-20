@@ -211,7 +211,7 @@ namespace AstroHybrid.App.Models
             if (Speed < 0 || Speed > 5) Speed = 0;
             if (Size < 0 || Size >= ResolutionPresets.Length) Size = 2;
             if (Overlay < 0 || Overlay > 3) Overlay = 0;
-            if (Upscale < 0 || Upscale > 1) Upscale = 0;
+            if (Upscale < 0 || Upscale > 2) Upscale = 0;   // 0 game's own, 1 NVIDIA DLSS, 2 AMD FSR
             if (FrameGenMode < 0 || FrameGenMode > 4) FrameGenMode = 0;
             if (FrameGenTarget < 0 || FrameGenTarget > 6) FrameGenTarget = 2;
             if (DlssQuality < 0 || DlssQuality > 3) DlssQuality = 0;
@@ -223,8 +223,9 @@ namespace AstroHybrid.App.Models
             if (IsUltrawideSize) Ultrawide = true;
             else if (Ultrawide) Size = Size == 9 ? 8 : Size == 3 ? 5 : 4;
 
-            if (!supportsDlss) Upscale = 0;
-            if (!supportsFrameGeneration || Upscale == 0) FrameGenMode = 0;
+            if (!supportsDlss && Upscale == 1) Upscale = 0;
+            // Frame generation is NVIDIA DLSS Frame Generation: it needs DLSS as the upscaler.
+            if (!supportsFrameGeneration || Upscale != 1) FrameGenMode = 0;
             if (!supportsReflex) LowLatency = false;
             // Fixed 3x / 4x need a card that can generate that many frames (RTX 50 multi frame generation).
             if (FrameGenMode >= 3 && FrameGenMode > Math.Max(2, maxFrameGenMultiplier)) FrameGenMode = 2;

@@ -99,7 +99,7 @@ namespace AstroHybrid.App.ViewModels
 
                 // DLSS and frame generation need the NVIDIA card: a card without them turns the
                 // options off instead of leaving settings the launcher cannot honour.
-                if (!hardware.SupportsDlss && _mainViewModel.Settings.Upscale != 0)
+                if (!hardware.SupportsDlss && _mainViewModel.Settings.Upscale == 1)
                     _mainViewModel.Settings.Upscale = 0;
                 if (!hardware.SupportsFrameGeneration && _mainViewModel.Settings.FrameGenMode != 0)
                     _mainViewModel.Settings.FrameGenMode = 0;
@@ -259,10 +259,28 @@ namespace AstroHybrid.App.ViewModels
             {
                 var hw = _mainViewModel.HardwareInfo;
                 var bestUpscale = hw != null ? _mainViewModel.BestSettingsFor(hw).Upscale : 0;
-                var labels = new List<string> { "Auto - " + (bestUpscale == 1 ? "NVIDIA DLSS" : "the game's own upscaling") };
+                var labels = new List<string> { "Auto - " + UpscalerName(bestUpscale) };
                 labels.Add("Off - the game's own upscaling");
                 if (HasDlss) labels.Add("NVIDIA DLSS - sharper image");
+                labels.Add("AMD FSR - " + FsrVersionNote);
                 return labels.ToArray();
+            }
+        }
+
+        // Combo index -> Upscale value (index 0 is Auto): Off, DLSS where supported, FSR.
+        private int[] UpscaleValues => HasDlss ? new[] { -1, 0, 1, 2 } : new[] { -1, 0, 2 };
+
+        private static string UpscalerName(int value) =>
+            value == 1 ? "NVIDIA DLSS" : value == 2 ? "AMD FSR" : "the game's own upscaling";
+
+        // FSR 4 (machine learning) runs on Radeon RX 9000 cards; the renderer falls back to FSR 3.1 elsewhere.
+        private string FsrVersionNote
+        {
+            get
+            {
+                var name = _mainViewModel.HardwareInfo?.GpuName ?? "";
+                bool rdna4 = name.IndexOf("RX 90", StringComparison.OrdinalIgnoreCase) >= 0;
+                return rdna4 ? "FSR 4 on this card" : "FSR 3.1 on this card (FSR 4 needs a Radeon RX 9000)";
             }
         }
 
@@ -272,14 +290,16 @@ namespace AstroHybrid.App.ViewModels
             {
                 var st = _mainViewModel.Settings;
                 if (st.UpscaleAuto) return 0;
-                return st.Upscale == 1 && HasDlss ? 2 : 1;
+                int i = Array.IndexOf(UpscaleValues, st.Upscale);
+                return i > 0 ? i : 1;
             }
             set
             {
-                if (value < 0 || value >= UpscaleLabels.Length || value == UpscaleIndex) return;
+                var values = UpscaleValues;
+                if (value < 0 || value >= values.Length || value == UpscaleIndex) return;
                 var st = _mainViewModel.Settings;
                 st.UpscaleAuto = value == 0;
-                if (value != 0) st.Upscale = value == 2 ? 1 : 0;
+                if (value != 0) st.Upscale = values[value];
                 _mainViewModel.ResolveAutoGraphics();
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(IsFrameGenAvailable));
@@ -382,7 +402,7 @@ namespace AstroHybrid.App.ViewModels
                 var st = _mainViewModel.Settings;
                 var parts = new List<string>();
                 parts.Add(st.Lighting == 1 ? "ray-traced lighting" : "faster lighting");
-                parts.Add(st.Upscale == 1 ? "DLSS upscaling" : "the game's own upscaling");
+                parts.Add(st.Upscale == 1 ? "DLSS upscaling" : st.Upscale == 2 ? "AMD FSR upscaling" : "the game's own upscaling");
                 if (st.FrameGenMode != 0)
                 {
                     var targetValues = new[] { 0, 50, 60, 90, 120, 144, 165 };
@@ -451,7 +471,7 @@ namespace AstroHybrid.App.ViewModels
         }
 
         // Computed properties for UI state
-        public bool IsFrameGenAvailable => _mainViewModel.HardwareInfo?.SupportsFrameGeneration == true && _mainViewModel.Settings.Upscale != 0;
+        public bool IsFrameGenAvailable => _mainViewModel.HardwareInfo?.SupportsFrameGeneration == true && _mainViewModel.Settings.Upscale == 1;
 
         public bool IsFrameGenTargetEnabled => _mainViewModel.Settings.FrameGenMode != 0;
 
@@ -465,7 +485,7 @@ namespace AstroHybrid.App.ViewModels
             {
                 int mode = _mainViewModel.Settings.FrameGenMode;
                 if (!IsFrameGenAvailable)
-                    return "Frame generation needs DLSS upscaling: choose Auto or NVIDIA DLSS above.";
+                    return "Frame generation (NVIDIA DLSS Frame Generation) needs DLSS upscaling: choose Auto or NVIDIA DLSS above.";
                 if (mode == 0)
                     return "Frame generation multiplies the frames you see (30 FPS limit x2 = 60 on screen) and turns Reflex on itself. It runs only while the game window is focused. Do not also use NVIDIA Smooth Motion.";
 
@@ -504,7 +524,7 @@ namespace AstroHybrid.App.ViewModels
                 else if (_mainViewModel.HardwareInfo.RtxSeries >= 20)
                     return $"{gpu}: DLSS + Reflex available (Frame Gen needs RTX 40+)";
                 else
-                    return $"{gpu}: Using game's own upscaling (NVIDIA features need RTX 20+)";
+                    return $"{gpu}: AMD FSR upscaling available (DLSS, frame generation and Reflex need an NVIDIA RTX card)";
             }
         }
     }

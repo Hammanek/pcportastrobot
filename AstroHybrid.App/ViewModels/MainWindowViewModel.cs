@@ -378,10 +378,10 @@ namespace AstroHybrid.App.ViewModels
             if (Settings.FrameGenAuto)
             {
                 bool wasOff = Settings.FrameGenMode == 0;
-                Settings.FrameGenMode = Settings.Upscale == 0 ? 0 : best.FrameGen;
+                Settings.FrameGenMode = Settings.Upscale != 1 ? 0 : best.FrameGen;
                 if (wasOff && Settings.FrameGenMode != 0) Settings.FrameGenTarget = best.Target;
             }
-            if (Settings.Upscale == 0) Settings.FrameGenMode = 0;
+            if (Settings.Upscale != 1) Settings.FrameGenMode = 0;
         }
 
         // Restore Defaults on the Graphics page: graphics only. Controller, language, game folder and
