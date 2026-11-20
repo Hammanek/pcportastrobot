@@ -18,5 +18,14 @@ if not defined ASTROHYBRID_DLSS_PATH set "ASTROHYBRID_DLSS_PATH=%~dp0Build\RunHy
 if not defined ASTROHYBRID_LOW_LATENCY set ASTROHYBRID_LOW_LATENCY=1
 rem Keep game simulation real-time when DLSS lowers the presented frame rate, matching launcher startup.
 if not defined ASTROHYBRID_GAME_SPEED set ASTROHYBRID_GAME_SPEED=1
+
+rem TDR workaround and physics sub-stepping (inherited from Run-AstroHybrid.bat)
+rem These are already set in the main script but documented here for clarity
+if not defined ASTROHYBRID_TDR_WORKAROUND set "ASTROHYBRID_TDR_WORKAROUND=1"
+if not defined ASTROHYBRID_PHYSICS_SUBSTEP set "ASTROHYBRID_PHYSICS_SUBSTEP=1"
+if not defined ASTROHYBRID_FAST_LOAD set "ASTROHYBRID_FAST_LOAD=1"
+if not defined ASTROHYBRID_SHADER_PRECOMPILE set "ASTROHYBRID_SHADER_PRECOMPILE=1"
+if not defined ASTROHYBRID_PIPELINE_CACHE_WARMUP set "ASTROHYBRID_PIPELINE_CACHE_WARMUP=1"
+
 call "%~dp0Run-AstroHybrid.bat" %*
 exit /b %ERRORLEVEL%
