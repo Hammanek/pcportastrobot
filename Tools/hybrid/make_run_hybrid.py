@@ -30,6 +30,9 @@ import shutil
 import subprocess
 import sys
 
+# Add the current directory to path for importing apply_game_patches
+sys.path.insert(0, str(pathlib.Path(__file__).parent))
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 RUN = ROOT / "Build" / "Run"
 HYBRID = ROOT / "Build" / "RunHybrid"
@@ -120,6 +123,23 @@ def make_non_rt(source, target, patches=NON_RT):
         target.write_bytes(bytes(data))
 
 
+def apply_game_patches(input_exe: pathlib.Path, output_exe: pathlib.Path) -> bool:
+    """Apply game patches from level_fixes.toml to the executable."""
+    try:
+        from apply_game_patches import apply_patches
+    except ImportError:
+        print("Warning: apply_game_patches module not found, skipping game patches")
+        return True
+
+    GAME_PATCHES_TOML = ROOT / "Source" / "game-patches" / "level_fixes.toml"
+    if not GAME_PATCHES_TOML.exists():
+        print("Game patches TOML not found, skipping")
+        return True
+
+    print(f"Applying game patches from {GAME_PATCHES_TOML}...")
+    return apply_patches(input_exe, output_exe, GAME_PATCHES_TOML)
+
+
 def main():
     if not (RUN / "AstroBot.exe").exists():
         sys.exit("Build\\Run\\AstroBot.exe is missing")
@@ -131,6 +151,11 @@ def main():
     for item in RUN.iterdir():
         if item.is_file() and item.name.startswith("AstroBot") and not item.name.startswith(("AstroBot-1080p", "AstroBot-NonTiled")):
             link(item, HYBRID / item.name)
+
+    # Apply game patches to the main executable
+    main_exe = HYBRID / "AstroBot.exe"
+    if main_exe.exists():
+        apply_game_patches(main_exe, main_exe)
     replaced = {name.lower() for name in SHIMS + FRESH}
     linked = 0
     for item in (RUN / "libs").iterdir():
@@ -152,6 +177,11 @@ def main():
     if (RUN / "AstroBot-NonTiled.exe").exists():
         make_non_rt(RUN / "AstroBot-NonTiled.exe", HYBRID / "AstroBot-NonRT.exe")
         make_non_rt(RUN / "AstroBot-NonTiled.exe", HYBRID / "AstroBot-NonRT-SoftAssert.exe", NON_RT + SOFT_ASSERT)
+        # Apply game patches to NonRT variants
+        for variant in ("AstroBot-NonRT.exe", "AstroBot-NonRT-SoftAssert.exe"):
+            variant_path = HYBRID / variant
+            if variant_path.exists():
+                apply_game_patches(variant_path, variant_path)
         for item in RUN.iterdir():
             if item.is_file() and item.name.startswith("AstroBot-NonTiled.") and item.suffix == ".json":
                 link(item, HYBRID / item.name.replace("AstroBot-NonTiled.", "AstroBot-NonRT."))
