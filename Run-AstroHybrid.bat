@@ -31,6 +31,9 @@ rem hybrid never opened Kyty's caches and compiled shaders during play (100-117 
 rem late compiles and no frame over 80 ms. ASTROHYBRID_SHADER_CACHE=0 turns it off.
 if not defined ASTROHYBRID_CACHE_TITLE_ID if not "%ASTROHYBRID_SHADER_CACHE%"=="0" set ASTROHYBRID_CACHE_TITLE_ID=PPSA21567
 if exist "%ROOT%Build\RunHybrid\u59-preset.cmd" call "%ROOT%Build\RunHybrid\u59-preset.cmd"
+rem Dump folders setup could not link into app0 (an exFAT, FAT32 or network drive, issue #135): the game
+rem reads them from the dump through AnyPS5's path aliases (APS5_PATH_ALIASES, one line written by setup).
+if not defined APS5_PATH_ALIASES if exist "%ROOT%Build\RunHybrid\app0-aliases.txt" set /p APS5_PATH_ALIASES=<"%ROOT%Build\RunHybrid\app0-aliases.txt"
 rem Prefer the soft-assert NonRT build for the command-buffer overflow path (issue #25).
 rem Callers can still override ASTROHYBRID_EXE explicitly; older runtimes fall back safely.
 if not defined ASTROHYBRID_EXE if exist "%ROOT%Build\RunHybrid\AstroBot-NonRT-SoftAssert.exe" set ASTROHYBRID_EXE=AstroBot-NonRT-SoftAssert.exe

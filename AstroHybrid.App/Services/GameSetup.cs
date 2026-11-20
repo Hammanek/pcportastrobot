@@ -165,7 +165,8 @@ namespace AstroHybrid.App.Services
             var baseBytes = File.ReadAllBytes(basePath);
             bool clothPatched = ApplyClothPhysicsPatches(baseBytes, Log);
             bool cmdbufPatched = ApplyCommandBufferPatches(baseBytes, Log);
-            if (clothPatched || cmdbufPatched)
+            bool garlicPatched = ApplyGarlicPoolPatch(baseBytes, Log);
+            if (clothPatched || cmdbufPatched || garlicPatched)
                 File.WriteAllBytes(basePath, baseBytes);
             ApplyVariantPatches(baseBytes, features, overwriteExisting: true, Log);
             // Real-time speed needs the frame-rate block; it is found by its initial values in any version (the
@@ -366,6 +367,26 @@ namespace AstroHybrid.App.Services
                 : Enumerable.Empty<string>();
         }
 
+        // Folders of the dump the game reads through APS5_PATH_ALIASES instead of a link in app0 (#135), one
+        // "/app0/<name>=<folder>" per line; Run-AstroHybrid.bat passes them to the game.
+        public const string App0AliasesFile = "app0-aliases.txt";
+
+        public static Dictionary<string, string> ReadApp0Aliases(string runHybrid)
+        {
+            var aliases = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var path = Path.Combine(runHybrid, App0AliasesFile);
+            if (!File.Exists(path)) return aliases;
+            foreach (var item in File.ReadAllText(path).Split(new[] { ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                int separator = item.IndexOf('=');
+                if (separator <= 0) continue;
+                var name = item.Substring(0, separator).Trim().Trim('/', '\\');
+                if (name.StartsWith("app0/", StringComparison.OrdinalIgnoreCase)) name = name.Substring(5);
+                aliases[name] = item.Substring(separator + 1).Trim();
+            }
+            return aliases;
+        }
+
         private void BuildApp0(string dump, string app0, Action<string> log)
         {
             DeleteTree(app0);
@@ -373,6 +394,10 @@ namespace AstroHybrid.App.Services
             var archive = Path.Combine(_runHybrid, "app0.zar");
             if (File.Exists(archive))
                 File.Delete(archive);
+            var aliasesFile = Path.Combine(_runHybrid, App0AliasesFile);
+            if (File.Exists(aliasesFile))
+                File.Delete(aliasesFile);
+            var aliases = new List<string>();
             foreach (var dir in Directory.GetDirectories(dump))
             {
                 var name = Path.GetFileName(dir);
@@ -385,14 +410,19 @@ namespace AstroHybrid.App.Services
                     var (linkCode, linkOutput) = RunProcess("cmd.exe", $"/c mklink /D \"{Path.Combine(app0, name)}\" \"{dir}\"", app0);
                     if (linkCode != 0)
                     {
-                        throw new InvalidOperationException(
-                            $"Could not link the dump's '{name}' folder ({output.Trim()}). If the dump is on a network drive, turn on Developer Mode " +
-                            "(Windows Settings > System > For developers) or run AstroHybrid once as administrator, then press Install again; " +
-                            "or copy the dump to a local drive.");
+                        // Neither link is possible: junctions need a local NTFS drive, and a symbolic link needs
+                        // Developer Mode or administrator rights. An exFAT or FAT32 external drive (#135) or a network
+                        // drive gets here. The game then reads the folder from the dump through AnyPS5's path aliases.
+                        aliases.Add($"/app0/{name}={dir}");
+                        log($"app0\\{name}: read from the dump through APS5_PATH_ALIASES (junction refused: {output.Trim()}; " +
+                            $"symbolic link refused: {linkOutput.Trim()})");
+                        continue;
                     }
                     log($"app0\\{name}: symbolic link (junction refused: {output.Trim()})");
                 }
             }
+            if (aliases.Count > 0)
+                File.WriteAllText(aliasesFile, string.Join(";", aliases));
             foreach (var file in Directory.GetFiles(dump))
             {
                 // app0.zar belongs beside the app0 directory so the runtime can mount it as the
@@ -445,7 +475,14 @@ namespace AstroHybrid.App.Services
                     return $"the link app0\\{Path.GetFileName(dir)} points to a folder that can't be opened ({ex.Message.Trim()})";
                 }
             }
-            var sceSys = Path.Combine(app0, "sce_sys");
+            // Folders read through APS5_PATH_ALIASES (#135) must still be where setup found them.
+            var aliases = ReadApp0Aliases(runHybrid);
+            foreach (var alias in aliases)
+            {
+                if (!Directory.Exists(alias.Value))
+                    return $"the dump folder {alias.Value} (app0\\{alias.Key}) can't be found; is its drive connected?";
+            }
+            var sceSys = aliases.TryGetValue("sce_sys", out var aliasedSceSys) ? aliasedSceSys : Path.Combine(app0, "sce_sys");
             if (!File.Exists(Path.Combine(sceSys, "param.json")) && !File.Exists(Path.Combine(sceSys, "param.sfo")))
                 return "the game's sce_sys\\param.json can't be found through app0";
             return null;
@@ -527,16 +564,25 @@ namespace AstroHybrid.App.Services
 
         private const string CommandBufferTable8 = "0800000008000000080000000800000008000000100020003000400008000000";
         private const string CommandBufferTable16 = "1000000010000000100000001000000010000000100020003000400008000000";
-        private const string CommandBufferUpgradeMarker = "astrohybrid-cmdbuf16.txt";
+        // The game's fixed graphics (Garlic) memory pool: mov eax, 0x87C00000 (2172 MiB). The 16 MiB command
+        // buffers (#159) come out of it, and Trunk of Funk then missed it by 256 KB ("Out of graphics memory
+        // [Garlic]", a freeze at the end of the loading animation: #166, #173, #178, #179). Raised by 256 MiB to
+        // 0x97C00000 (2428 MiB), below the 2564 MiB the same routine picks on its other path.
+        private const string GarlicPool = "B80000C08748C785";
+        private const string GarlicPoolRaised = "B80000C09748C785";
+        // Upgrades of installs made by older versions, one marker file each: an executable listed there was
+        // already checked for that upgrade.
+        private const string UpgradeMarker = "astrohybrid-upgrades-1.2.7.txt";
 
-        // Installs set up by 1.1.0 - 1.2.5 have the 8 MiB table in every AstroBot*.exe. Raises it to 16 MiB
-        // in the executable about to start (#159), once: the names already checked are kept in a marker file
-        // next to them, so the large file is read only the first time. A file without the 8 MiB table (a
-        // new setup, another game version) is left as it is. Returns true when it changed the file.
+        // Installs set up by 1.1.0 - 1.2.6 lack these patches in their AstroBot*.exe files: the 16 MiB
+        // command buffers (#159; 1.1.0 - 1.2.5 have 8 MiB) and the larger Garlic pool. Applies whichever is
+        // missing in the executable about to start, once: the names already checked are kept in a marker
+        // file next to them, so the large file is read only the first time. Patterns that are not there (a
+        // new setup, another game version) leave the file as it is. Returns true when it changed the file.
         public bool UpgradeCommandBufferTable(string exeName, Action<string>? log = null)
         {
             log ??= _ => { };
-            var marker = Path.Combine(_runHybrid, CommandBufferUpgradeMarker);
+            var marker = Path.Combine(_runHybrid, UpgradeMarker);
             var done = File.Exists(marker)
                 ? new HashSet<string>(File.ReadAllLines(marker), StringComparer.OrdinalIgnoreCase)
                 : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -544,11 +590,16 @@ namespace AstroHybrid.App.Services
             var path = Path.Combine(_runHybrid, exeName);
             if (!File.Exists(path)) return false;
             var bytes = File.ReadAllBytes(path);
-            bool changed = ApplyAll(bytes, new[] { ("cmdbuf_worker_mib_table_16", CommandBufferTable8, CommandBufferTable16) }, log);
-            if (changed) File.WriteAllBytes(path, bytes);
+            bool table = ApplyAll(bytes, new[] { ("cmdbuf_worker_mib_table_16", CommandBufferTable8, CommandBufferTable16) }, log);
+            bool garlic = ApplyAll(bytes, new[] { ("garlic_pool_plus_256mib", GarlicPool, GarlicPoolRaised) }, log);
+            if (table || garlic) File.WriteAllBytes(path, bytes);
             File.AppendAllLines(marker, new[] { exeName });
-            return changed;
+            return table || garlic;
         }
+
+        // New setups: the larger Garlic pool, with the 16 MiB command buffers (see GarlicPool).
+        private static bool ApplyGarlicPoolPatch(byte[] data, Action<string> log) =>
+            ApplyAll(data, new[] { ("garlic_pool_plus_256mib", GarlicPool, GarlicPoolRaised) }, log);
 
         // Prevent worker command buffer exhaustion and NULL memcpy crashes in heavy scenes (#47, #50, #6, #159).
         // Raises the 5-worker command buffer MiB table (7,7,4,4,6 -> 16 each) and skips memcpy when dst is NULL.
