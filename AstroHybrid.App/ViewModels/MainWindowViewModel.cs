@@ -608,6 +608,15 @@ namespace AstroHybrid.App.ViewModels
                 }
             }
 
+            // Cards with less than 11 GB of video memory run out at 4K and 5K (#155, #170: 8 GB cards at 4K
+            // ended with ErrorOutOfDeviceMemory; #161: an 8 GB laptop GPU was offered 4K). Stay at 1440p there.
+            int vramMb = pc.SelectedGpu?.VramMb ?? 0;
+            if (vramMb > 0 && vramMb < 11 * 1024)
+            {
+                if (best.Size == 9) best.Size = 3;   // 3840x2160 -> 2560x1440
+                if (best.Size == 8) best.Size = 5;   // 5120x2160 -> 3440x1440
+            }
+
             if (pc.RtxSeries >= 20)
             {
                 best.Upscale = 1;

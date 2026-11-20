@@ -34,6 +34,8 @@ namespace AstroHybrid.App.Models
         public bool SupportsFrameGeneration { get; set; } = false;
         public bool SupportsReflex { get; set; } = false;
         public int MaxFrameGenMultiplier { get; set; } = 1;
+        // Dedicated video memory in MiB from the display driver's registry entry; 0 when unknown.
+        public int VramMb { get; set; } = 0;
 
         public string KindLabel => IsDiscrete ? "discrete" : IsIntegrated ? "integrated" : "graphics";
 
