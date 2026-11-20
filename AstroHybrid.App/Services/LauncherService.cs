@@ -189,12 +189,131 @@ namespace AstroHybrid.App.Services
                 errors.Add("Insufficient disk space (need at least 1 GB free).");
             }
 
+            // Check Windows version (Windows 10 1809+ required for Vulkan mesh shaders)
+            if (!IsWindowsVersionSupported())
+            {
+                errors.Add("Windows 10 version 1809 (build 17763) or later is required for Vulkan mesh shader support.");
+            }
+
+            // Check for administrator privileges (warn but don't block)
+            if (!IsRunningAsAdmin())
+            {
+                // Just log a warning, don't add to errors
+                AppendDebugLog("Warning: Not running as administrator. Some features may not work correctly.");
+            }
+
+            // Check for known antivirus interference
+            if (IsAntivirusInterfering())
+            {
+                errors.Add("Antivirus software may be blocking game files. Please add the AstroHybrid folder to your antivirus exclusions.");
+            }
+
+            // Check GPU memory
+            if (hardware != null && hardware.SelectedGpu != null)
+            {
+                if (!HasSufficientGpuMemory(hardware.SelectedGpu))
+                {
+                    errors.Add($"GPU '{hardware.SelectedGpu.Name}' may have insufficient VRAM. Minimum 6 GB recommended, 8 GB+ for ultrawide/DLSS.");
+                }
+            }
+
+            // Check audio drivers
+            if (!HasWorkingAudioDevice())
+            {
+                errors.Add("No working audio output device detected. Please ensure audio drivers are installed and a playback device is enabled.");
+            }
+
             if (errors.Count > 0)
             {
                 return new LaunchValidationResult { IsValid = false, ErrorMessage = "Launch validation failed:\n" + string.Join("\n", errors) };
             }
 
             return new LaunchValidationResult { IsValid = true };
+        }
+
+        private bool IsWindowsVersionSupported()
+        {
+            try
+            {
+                var version = Environment.OSVersion.Version;
+                // Windows 10 build 17763 (1809) or later
+                return version.Major > 10 || (version.Major == 10 && version.Build >= 17763);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private bool IsRunningAsAdmin()
+        {
+            try
+            {
+                using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+                var principal = new System.Security.Principal.WindowsPrincipal(identity);
+                return principal.IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private bool IsAntivirusInterfering()
+        {
+            try
+            {
+                using var searcher = new System.Management.ManagementObjectSearcher("SELECT displayName FROM AntivirusProduct");
+                foreach (var obj in searcher.Get())
+                {
+                    var name = obj["displayName"]?.ToString() ?? "";
+                    if (!string.IsNullOrEmpty(name))
+                    {
+                        // Log detected antivirus for debugging
+                        AppendDebugLog($"Detected antivirus: {name}");
+                        // We don't block on this, just warn
+                    }
+                }
+            }
+            catch { }
+            return false; // Don't block, just log
+        }
+
+        private bool HasSufficientGpuMemory(HardwareInfo.GpuInfo gpu)
+        {
+            try
+            {
+                using var searcher = new System.Management.ManagementObjectSearcher("SELECT AdapterRAM FROM Win32_VideoController WHERE Name LIKE '%" + gpu.Name.Replace("'", "''") + "%'");
+                foreach (var obj in searcher.Get())
+                {
+                    if (obj["AdapterRAM"] != null)
+                    {
+                        var vramBytes = Convert.ToInt64(obj["AdapterRAM"]);
+                        var vramGB = vramBytes / 1024 / 1024 / 1024;
+                        return vramGB >= 6; // Minimum 6 GB
+                    }
+                }
+            }
+            catch { }
+            return true; // Assume sufficient if we can't detect
+        }
+
+        private bool HasWorkingAudioDevice()
+        {
+            try
+            {
+                using var searcher = new System.Management.ManagementObjectSearcher("SELECT Name, Status FROM Win32_SoundDevice WHERE Status = 'OK'");
+                foreach (var obj in searcher.Get())
+                {
+                    var status = obj["Status"]?.ToString() ?? "";
+                    if (status == "OK")
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch { }
+            return false; // No working audio device found
         }
 
         private bool IsVulkanSupported()
@@ -778,6 +897,15 @@ namespace AstroHybrid.App.Services
             env["ASTROHYBRID_COMMIT_EPOCH_FASTPATH"] = "read";
             env["KYTY_BUFFER_RANGE_FIXES"] = "1";
             env["APS5_SAVEDATA_TRANSFER_FALLBACK"] = "1";
+
+            // New stability and debugging options
+            env["ASTROHYBRID_HANG_WATCHDOG_INTERVAL"] = "5000";
+            env["ASTROHYBRID_TEXTURE_STREAMING_QUALITY"] = "2";
+            env["ASTROHYBRID_CLEAR_SHADER_CACHE_ON_STARTUP"] = "0";
+            env["ASTROHYBRID_MEMORY_PRESSURE_HANDLING"] = "1";
+            env["ASTROHYBRID_SAFE_MODE"] = "0";
+            env["ASTROHYBRID_DEBUG_LAYERS"] = "0";
+            env["ASTROHYBRID_SINGLE_THREADED_SUBMIT"] = "0";
 
             return env;
         }

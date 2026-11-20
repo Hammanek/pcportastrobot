@@ -21,6 +21,14 @@
 #   ASTROHYBRID_SHADER_PRECOMPILE=1 Enable background shader precompilation (#83, #92)
 #   ASTROHYBRID_PIPELINE_CACHE_WARMUP=1 Enable pipeline cache warmup on startup
 #   ASTROHYBRID_VRAM_LIMIT_MB=N   Set VRAM limit in MB for texture streaming (#114)
+#   ASTROHYBRID_TEXTURE_STREAMING_QUALITY=N Texture streaming quality 0-3 (higher = better) (#13, #145)
+#   ASTROHYBRID_CLEAR_SHADER_CACHE_ON_STARTUP=0 Clear stale shader cache on startup (#161, #157)
+#   ASTROHYBRID_MEMORY_PRESSURE_HANDLING=1 Enable memory pressure handling (#161, #157)
+#   ASTROHYBRID_HANG_WATCHDOG=0|1|2 Hang watchdog level (2=aggressive for #166 freezes)
+#   ASTROHYBRID_HANG_WATCHDOG_INTERVAL=5000 Hang watchdog check interval in ms
+#   ASTROHYBRID_SAFE_MODE=1 Disable experimental features for maximum stability
+#   ASTROHYBRID_DEBUG_LAYERS=1 Enable Vulkan validation layers for debugging
+#   ASTROHYBRID_SINGLE_THREADED_SUBMIT=1 Force single-threaded command submission for debugging
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

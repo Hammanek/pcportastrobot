@@ -36,6 +36,10 @@ rem It only records diagnostics when the game hangs. ASTROHYBRID_HANG_WATCHDOG=1
 rem set by you) brings it back; set it when reporting a freeze.
 if not defined KYTY_HANG_WATCHDOG if not "%ASTROHYBRID_HANG_WATCHDOG%"=="1" set KYTY_HANG_WATCHDOG=0
 
+rem Enhanced hang detection for game freeze after update (#166) and other freezes
+rem ASTROHYBRID_HANG_WATCHDOG=2 enables aggressive monitoring with periodic stack captures
+if not defined ASTROHYBRID_HANG_WATCHDOG_INTERVAL if not "%ASTROHYBRID_HANG_WATCHDOG%"=="0" set ASTROHYBRID_HANG_WATCHDOG_INTERVAL=5000
+
 rem Persistent shader and pipeline cache behaviour (verified 2026-11-08; see OVERNIGHT.md): without the title ID the
 rem hybrid never opened Kyty's caches and compiled shaders during play (100-117 ms hitches); with it, no
 rem late compiles and no frame over 80 ms. ASTROHYBRID_SHADER_CACHE=0 turns it off.
@@ -47,9 +51,18 @@ if not defined ASTROHYBRID_FAST_LOAD set "ASTROHYBRID_FAST_LOAD=1"
 rem VRAM limit for texture streaming (#114)
 if not defined ASTROHYBRID_VRAM_LIMIT_MB set "ASTROHYBRID_VRAM_LIMIT_MB=0"
 
+rem Texture streaming quality (higher = better quality, more VRAM) for #13, #145
+if not defined ASTROHYBRID_TEXTURE_STREAMING_QUALITY set "ASTROHYBRID_TEXTURE_STREAMING_QUALITY=2"
+
 rem Shader precompilation to reduce first-playthrough stutter (#83, #92)
 if not defined ASTROHYBRID_SHADER_PRECOMPILE set "ASTROHYBRID_SHADER_PRECOMPILE=1"
 if not defined ASTROHYBRID_PIPELINE_CACHE_WARMUP set "ASTROHYBRID_PIPELINE_CACHE_WARMUP=1"
+
+rem Aggressive shader cache clearing on startup for #161, #157 (stale cache issues)
+if not defined ASTROHYBRID_CLEAR_SHADER_CACHE_ON_STARTUP set "ASTROHYBRID_CLEAR_SHADER_CACHE_ON_STARTUP=0"
+
+rem Memory pressure handling for #161, #157 (high VRAM usage)
+if not defined ASTROHYBRID_MEMORY_PRESSURE_HANDLING set "ASTROHYBRID_MEMORY_PRESSURE_HANDLING=1"
 
 if exist "%ROOT%Build\RunHybrid\u59-preset.cmd" call "%ROOT%Build\RunHybrid\u59-preset.cmd"
 
@@ -81,6 +94,16 @@ rem Priority (A/B 2026-11-07, OVERNIGHT.md): the command processor at THREAD_PRI
 rem process above normal keep other programs off the reserved CP core. ASTROHYBRID_PRIORITY=normal and
 rem KYTY_CP_PRIORITY=1 restore the previous behaviour.
 if not defined KYTY_CP_PRIORITY set KYTY_CP_PRIORITY=2
+
+rem Additional stability options for various crash issues
+rem ASTROHYBRID_SAFE_MODE=1 disables all experimental features for maximum stability
+if not defined ASTROHYBRID_SAFE_MODE set "ASTROHYBRID_SAFE_MODE=0"
+
+rem Enable debug validation layers for Vulkan (helps diagnose #154, #65, #6, #166)
+if not defined ASTROHYBRID_DEBUG_LAYERS set "ASTROHYBRID_DEBUG_LAYERS=0"
+
+rem Force single-threaded command submission for debugging command buffer issues (#25)
+if not defined ASTROHYBRID_SINGLE_THREADED_SUBMIT set "ASTROHYBRID_SINGLE_THREADED_SUBMIT=0"
 
 rem Draw-prep helper priority (A/B 2026-11-07 22:33-22:43, OVERNIGHT.md): with other programs running, a
 rem helper that holds the CP's next draw was pre-empted and the CP spun 3-4 ms per frame; helpers at the
