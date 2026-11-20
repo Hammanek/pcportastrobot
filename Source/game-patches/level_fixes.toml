@@ -63,3 +63,120 @@ va          = 0x12345678  # PLACEHOLDER
 expected    = "xxxxxxxx"
 value       = "xxxxxxxx"
 description = "Fix Egypt level world 4 level 1 issues"
+
+# Issue #164 - Crash at specific level (details unknown)
+[[patch]]
+name        = "issue_164_crash_fix"
+target      = "eboot.elf"
+va          = 0x12345678  # PLACEHOLDER - needs RE to find actual address
+expected    = "xxxxxxxx"
+value       = "xxxxxxxx"
+description = "Fix crash reported in issue #164 (level unknown)"
+
+# Issue #150 - Crash on level load
+[[patch]]
+name        = "issue_150_level_load_crash"
+target      = "eboot.elf"
+va          = 0x12345678  # PLACEHOLDER - needs RE
+expected    = "xxxxxxxx"
+value       = "xxxxxxxx"
+description = "Fix crash on level load reported in issue #150"
+
+# Issue #130 - Freeze at level end (multiple levels)
+[[patch]]
+name        = "issue_130_level_end_freeze"
+target      = "eboot.elf"
+va          = 0x12345678  # PLACEHOLDER - needs RE
+expected    = "xxxxxxxx"
+value       = "xxxxxxxx"
+description = "Fix freeze at level end reported in issue #130"
+
+# Issue #89 - Crash in Gorilla Nebula
+[[patch]]
+name        = "gorilla_nebula_crash_fix"
+target      = "eboot.elf"
+va          = 0x12345678  # PLACEHOLDER - needs RE
+expected    = "xxxxxxxx"
+value       = "xxxxxxxx"
+description = "Fix crash in Gorilla Nebula level reported in issue #89"
+
+# Issue #75 - Crash in construction site
+[[patch]]
+name        = "construction_site_crash_fix"
+target      = "eboot.elf"
+va          = 0x12345678  # PLACEHOLDER - needs RE
+expected    = "xxxxxxxx"
+value       = "xxxxxxxx"
+description = "Fix crash in construction site level reported in issue #75"
+
+# Issue #72 - Crash in sand level
+[[patch]]
+name        = "sand_level_crash_fix"
+target      = "eboot.elf"
+va          = 0x12345678  # PLACEHOLDER - needs RE
+expected    = "xxxxxxxx"
+value       = "xxxxxxxx"
+description = "Fix crash in sand level reported in issue #72"
+
+# Issue #69 - Crash in water level
+[[patch]]
+name        = "water_level_crash_fix"
+target      = "eboot.elf"
+va          = 0x12345678  # PLACEHOLDER - needs RE
+expected    = "xxxxxxxx"
+value       = "xxxxxxxx"
+description = "Fix crash in water level reported in issue #69"
+
+# Issue #126 - Physics glitch (multiple levels)
+[[patch]]
+name        = "issue_126_physics_glitch"
+target      = "eboot.elf"
+va          = 0x12345678  # PLACEHOLDER - needs RE
+expected    = "xxxxxxxx"
+value       = "xxxxxxxx"
+description = "Fix physics glitch reported in issue #126"
+
+# Issue #80 - Texture corruption (multiple levels)
+[[patch]]
+name        = "issue_80_texture_corruption"
+target      = "eboot.elf"
+va          = 0x12345678  # PLACEHOLDER - needs RE
+expected    = "xxxxxxxx"
+value       = "xxxxxxxx"
+description = "Fix texture corruption reported in issue #80"
+
+# Issue #47 - Audio crash (multiple levels)
+[[patch]]
+name        = "issue_47_audio_crash"
+target      = "eboot.elf"
+va          = 0x12345678  # PLACEHOLDER - needs RE
+expected    = "xxxxxxxx"
+value       = "xxxxxxxx"
+description = "Fix audio crash reported in issue #47"
+
+# Issue #43 - Save corruption (multiple levels)
+[[patch]]
+name        = "issue_43_save_corruption"
+target      = "eboot.elf"
+va          = 0x12345678  # PLACEHOLDER - needs RE
+expected    = "xxxxxxxx"
+value       = "xxxxxxxx"
+description = "Fix save corruption reported in issue #43"
+
+# Issue #53 - Boss fight crash
+[[patch]]
+name        = "issue_53_boss_fight_crash"
+target      = "eboot.elf"
+va          = 0x12345678  # PLACEHOLDER - needs RE
+expected    = "xxxxxxxx"
+value       = "xxxxxxxx"
+description = "Fix boss fight crash reported in issue #53"
+
+# Issue #66 - Cutscene crash
+[[patch]]
+name        = "issue_66_cutscene_crash"
+target      = "eboot.elf"
+va          = 0x12345678  # PLACEHOLDER - needs RE
+expected    = "xxxxxxxx"
+value       = "xxxxxxxx"
+description = "Fix cutscene crash reported in issue #66"
