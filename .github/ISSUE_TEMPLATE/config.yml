@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📖 Documentation & FAQ
+    url: https://github.com/imnotsharingmyname/pcportastrobot/wiki
+    about: Check the wiki for common issues, setup guides, and troubleshooting
+  - name: 💬 Discussions
+    url: https://github.com/imnotsharingmyname/pcportastrobot/discussions
+    about: Ask questions, share configs, or discuss features
+  - name: 🐛 Known Issues & Workarounds
+    url: https://github.com/imnotsharingmyname/pcportastrobot/issues?q=label%3Abug+is%3Aopen
+    about: Browse existing bug reports before filing a new one

@@ -256,6 +256,150 @@ namespace AstroHybrid.App.Services
             public string ErrorMessage { get; set; } = "";
         }
 
+        /// <summary>
+        /// Generates a comprehensive crash report with system information, logs, and environment details.
+        /// </summary>
+        public async Task<string> GenerateCrashReportAsync(int exitCode, string? additionalInfo = null)
+        {
+            var report = new System.Text.StringBuilder();
+            report.AppendLine("=== AstroHybrid Crash Report ===");
+            report.AppendLine($"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            report.AppendLine($"Exit Code: {exitCode} ({GetExitCodeDescription(exitCode)})");
+            report.AppendLine();
+
+            // System Information
+            report.AppendLine("--- System Information ---");
+            try
+            {
+                report.AppendLine($"OS: {Environment.OSVersion}");
+                report.AppendLine($".NET Framework: {Environment.Version}");
+                report.AppendLine($"Process Architecture: {(Environment.Is64BitProcess ? "x64" : "x86")}");
+                report.AppendLine($"OS Architecture: {(Environment.Is64BitOperatingSystem ? "x64" : "x86")}");
+                report.AppendLine($"Processor Count: {Environment.ProcessorCount}");
+                report.AppendLine($"Working Set: {Environment.WorkingSet / 1024 / 1024} MB");
+            }
+            catch (Exception ex)
+            {
+                report.AppendLine($"Failed to collect system info: {ex.Message}");
+            }
+            report.AppendLine();
+
+            // GPU Information
+            report.AppendLine("--- GPU Information ---");
+            try
+            {
+                using var searcher = new System.Management.ManagementObjectSearcher("SELECT Name, DriverVersion, AdapterRAM FROM Win32_VideoController");
+                foreach (var obj in searcher.Get())
+                {
+                    var name = obj["Name"]?.ToString() ?? "Unknown";
+                    var driver = obj["DriverVersion"]?.ToString() ?? "Unknown";
+                    var vram = obj["AdapterRAM"] != null ? $"{Convert.ToInt64(obj["AdapterRAM"]) / 1024 / 1024 / 1024} GB" : "Unknown";
+                    report.AppendLine($"GPU: {name} | Driver: {driver} | VRAM: {vram}");
+                }
+            }
+            catch (Exception ex)
+            {
+                report.AppendLine($"Failed to collect GPU info: {ex.Message}");
+            }
+            report.AppendLine();
+
+            // Environment Variables
+            report.AppendLine("--- Relevant Environment Variables ---");
+            var relevantVars = new[] { "ASTROHYBRID_TDR_WORKAROUND", "ASTROHYBRID_PHYSICS_SUBSTEP", "ASTROHYBRID_FAST_LOAD", 
+                "ASTROHYBRID_SHADER_PRECOMPILE", "ASTROHYBRID_PIPELINE_CACHE_WARMUP", "ASTROHYBRID_VRAM_LIMIT_MB",
+                "ASTROHYBRID_DLSS", "ASTROHYBRID_DLSSG", "ASTROHYBRID_CUDA_HOLE", "ANYPS5_GPU", "APS5_GPU_ENGINE",
+                "KYTY_HANG_WATCHDOG", "ASTROHYBRID_HANG_WATCHDOG" };
+            foreach (var var in relevantVars)
+            {
+                var value = Environment.GetEnvironmentVariable(var);
+                if (!string.IsNullOrEmpty(value))
+                {
+                    report.AppendLine($"{var}={value}");
+                }
+            }
+            report.AppendLine();
+
+            // Log Files
+            report.AppendLine("--- Log Files (last 100 lines each) ---");
+            var logFiles = new[] { "astrohybrid-debug.log", "hybrid-run.out.log", "hybrid-run.err.log" };
+            foreach (var logFile in logFiles)
+            {
+                var logPath = Path.Combine(_rootDirectory, "Logs", logFile);
+                if (File.Exists(logPath))
+                {
+                    report.AppendLine($"--- {logFile} ---");
+                    try
+                    {
+                        var lines = await File.ReadAllLinesAsync(logPath);
+                        var lastLines = lines.Skip(Math.Max(0, lines.Length - 100));
+                        foreach (var line in lastLines)
+                        {
+                            report.AppendLine(line);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        report.AppendLine($"Failed to read log: {ex.Message}");
+                    }
+                    report.AppendLine();
+                }
+                else
+                {
+                    report.AppendLine($"{logFile}: NOT FOUND");
+                    report.AppendLine();
+                }
+            }
+
+            // Settings
+            report.AppendLine("--- Current Settings ---");
+            try
+            {
+                var settings = _settingsManager.Load();
+                report.AppendLine($"Resolution: {settings.Size}");
+                report.AppendLine($"Fullscreen: {settings.Fullscreen}");
+                report.AppendLine($"VSync: {settings.VSync}");
+                report.AppendLine($"Upscale: {settings.Upscale}");
+                report.AppendLine($"FrameGenMode: {settings.FrameGenMode}");
+                report.AppendLine($"Lighting: {settings.Lighting}");
+                report.AppendLine($"Ultrawide: {settings.Ultrawide}");
+                report.AppendLine($"GameSpeed: {settings.GameSpeed}");
+            }
+            catch (Exception ex)
+            {
+                report.AppendLine($"Failed to load settings: {ex.Message}");
+            }
+            report.AppendLine();
+
+            if (!string.IsNullOrEmpty(additionalInfo))
+            {
+                report.AppendLine("--- Additional Information ---");
+                report.AppendLine(additionalInfo);
+                report.AppendLine();
+            }
+
+            report.AppendLine("=== End of Crash Report ===");
+            report.AppendLine();
+            report.AppendLine("Please include this report when filing an issue at:");
+            report.AppendLine("https://github.com/imnotsharingmyname/pcportastrobot/issues/new");
+
+            return report.ToString();
+        }
+
+        private string GetExitCodeDescription(int exitCode)
+        {
+            return exitCode switch
+            {
+                0 => "Success",
+                1 => "General error",
+                321 => "Vulkan Device Lost (TDR) - GPU timeout",
+                322 => "Vulkan Device Lost (driver crash)",
+                -1073740791 => "STATUS_ACCESS_VIOLATION (0xC0000005) - Null pointer dereference",
+                -1073741819 => "STATUS_STACK_BUFFER_OVERRUN (0xC00000F7) - Stack corruption",
+                259 => "Still active (process hasn't exited)",
+                _ => $"Unknown exit code (0x{exitCode:X})"
+            };
+        }
+
         public async Task<int> LaunchGameWithDlssAsync(AppSettings settings, HardwareInfo? hardware = null)
         {
             var batPath = Path.Combine(_rootDirectory, "Run-AstroHybrid-DLSS.bat");

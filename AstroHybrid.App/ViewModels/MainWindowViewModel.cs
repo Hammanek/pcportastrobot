@@ -309,11 +309,11 @@ namespace AstroHybrid.App.ViewModels
                 int exitCode;
                 if (Settings.FrameGenMode != 0)
                 {
-                    exitCode = await _launcherService.LaunchGameAsync(Settings, HardwareInfo);
+                    exitCode = await _launcherService.LaunchGameWithFrameGenAsync(Settings, HardwareInfo);
                 }
                 else if (Settings.Upscale != 0)
                 {
-                    exitCode = await _launcherService.LaunchGameAsync(Settings, HardwareInfo);
+                    exitCode = await _launcherService.LaunchGameWithDlssAsync(Settings, HardwareInfo);
                 }
                 else
                 {
@@ -326,14 +326,54 @@ namespace AstroHybrid.App.ViewModels
                     var detail = DescribeExitFailure(exitCode);
                     if (!string.IsNullOrEmpty(detail))
                     {
-                        MessageBox.Show(detail, "AstroHybrid - Game Exited With Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        var result = MessageBox.Show(
+                            $"{detail}\n\nWould you like to generate a detailed crash report to include in a GitHub issue?",
+                            "AstroHybrid - Game Exited With Error",
+                            MessageBoxButton.YesNo,
+                            MessageBoxImage.Warning);
+                        
+                        if (result == MessageBoxResult.Yes)
+                        {
+                            try
+                            {
+                                var crashReport = await _launcherService.GenerateCrashReportAsync(exitCode);
+                                var reportPath = Path.Combine(_rootDirectory, "Logs", $"crash-report-{DateTime.Now:yyyyMMdd-HHmmss}.txt");
+                                Directory.CreateDirectory(Path.GetDirectoryName(reportPath)!);
+                                await File.WriteAllTextAsync(reportPath, crashReport);
+                                
+                                // Also copy to clipboard for easy pasting
+                                System.Windows.Clipboard.SetText(crashReport);
+                                
+                                MessageBox.Show(
+                                    $"Crash report generated and copied to clipboard!\n\nSaved to: {reportPath}\n\nYou can now paste it directly into a GitHub issue.",
+                                    "Crash Report Generated",
+                                    MessageBoxButton.OK,
+                                    MessageBoxImage.Information);
+                            }
+                            catch (Exception ex)
+                            {
+                                MessageBox.Show($"Failed to generate crash report: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                            }
+                        }
                     }
                 }
             }
             catch (Exception ex)
             {
                 StatusMessage = $"Launch error: {ex.Message}";
-                MessageBox.Show($"Failed to launch game:\n{ex.Message}", "AstroHybrid", MessageBoxButton.OK, MessageBoxImage.Error);
+                // Generate crash report for launch failures too
+                try
+                {
+                    var crashReport = await _launcherService.GenerateCrashReportAsync(-1, ex.Message);
+                    var reportPath = Path.Combine(_rootDirectory, "Logs", $"crash-report-launch-{DateTime.Now:yyyyMMdd-HHmmss}.txt");
+                    Directory.CreateDirectory(Path.GetDirectoryName(reportPath)!);
+                    await File.WriteAllTextAsync(reportPath, crashReport);
+                    System.Windows.Clipboard.SetText(crashReport);
+                }
+                catch { }
+                
+                MessageBox.Show($"Failed to launch game:\n{ex.Message}\n\nA crash report has been generated and copied to clipboard. Please include it when filing an issue.", 
+                    "AstroHybrid", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {

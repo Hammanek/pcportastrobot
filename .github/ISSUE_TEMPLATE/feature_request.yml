@@ -1,0 +1,66 @@
+name: Feature Request
+description: Suggest a new feature or improvement
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature! Please describe what you'd like to see added or improved.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Feature Description
+      description: What feature would you like? Be as specific as possible.
+      placeholder: |
+        Clear description of the requested feature...
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use Case / Motivation
+      description: Why would this feature be useful? What problem does it solve?
+      placeholder: |
+        This would help users who...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - Graphics/Rendering (DLSS, FSR, Ray Tracing, etc.)
+        - Performance/Optimization
+        - Controller/Input Support
+        - Launcher/UI Improvements
+        - Linux/Wine Support
+        - Audio
+        - Modding Support
+        - Accessibility
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Have you considered any alternative solutions or workarounds?
+      placeholder: |
+        Alternative approaches...
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: implementation
+    attributes:
+      label: Implementation Notes
+      options:
+        - label: This requires upstream Kyty/AnyPS5 changes
+        - label: This requires game patching (eboot.elf RE)
+        - label: This can be implemented in the launcher only
+        - label: Not sure about implementation complexity
