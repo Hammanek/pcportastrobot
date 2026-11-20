@@ -46,6 +46,20 @@ namespace AstroHybrid.App.Models
         [JsonPropertyName("fgtarget")]
         public int FrameGenTarget { get; set; } = 2;
 
+        // "Auto" on the Graphics page: the launcher picks upscaling / frame generation for the selected card
+        // each start (Upscale and FrameGenMode then hold the resolved choice). False in older settings files,
+        // so a choice made before 1.2.8 is kept; setup, Best Settings and Restore Defaults turn them on.
+        // DLSS quality mode (#156): 0 Quality (default), 1 Balanced, 2 Performance, 3 DLAA. Passed to the renderer
+        // as ASTROHYBRID_DLSS_QUALITY; the game's own dynamic resolution still picks the input size.
+        [JsonPropertyName("dlssQuality")]
+        public int DlssQuality { get; set; } = 0;
+
+        [JsonPropertyName("upscaleAuto")]
+        public bool UpscaleAuto { get; set; } = false;
+
+        [JsonPropertyName("fgAuto")]
+        public bool FrameGenAuto { get; set; } = false;
+
         [JsonPropertyName("pad")]
         public int Controller { get; set; } = 0;
 
@@ -190,7 +204,7 @@ namespace AstroHybrid.App.Models
         [JsonIgnore]
         public bool IsSuperUltrawideSize => GetAspectRatio(Size) == 32;
 
-        public void Sanitize(bool supportsDlss = true, bool supportsFrameGeneration = true, bool supportsReflex = true)
+        public void Sanitize(bool supportsDlss = true, bool supportsFrameGeneration = true, bool supportsReflex = true, int maxFrameGenMultiplier = 4)
         {
             if (Lighting < 0 || Lighting > 1) Lighting = 0;
             if (Fps < 0 || Fps > 6) Fps = 0;
@@ -200,6 +214,7 @@ namespace AstroHybrid.App.Models
             if (Upscale < 0 || Upscale > 1) Upscale = 0;
             if (FrameGenMode < 0 || FrameGenMode > 4) FrameGenMode = 0;
             if (FrameGenTarget < 0 || FrameGenTarget > 6) FrameGenTarget = 2;
+            if (DlssQuality < 0 || DlssQuality > 3) DlssQuality = 0;
             if (Controller < 0 || Controller > 4) Controller = 0;
             if (CpPriority < 0 || CpPriority > 2) CpPriority = 2;
             if (Priority != "normal" && Priority != "abovenormal" && Priority != "high")
@@ -211,6 +226,8 @@ namespace AstroHybrid.App.Models
             if (!supportsDlss) Upscale = 0;
             if (!supportsFrameGeneration || Upscale == 0) FrameGenMode = 0;
             if (!supportsReflex) LowLatency = false;
+            // Fixed 3x / 4x need a card that can generate that many frames (RTX 50 multi frame generation).
+            if (FrameGenMode >= 3 && FrameGenMode > Math.Max(2, maxFrameGenMultiplier)) FrameGenMode = 2;
         }
     }
 

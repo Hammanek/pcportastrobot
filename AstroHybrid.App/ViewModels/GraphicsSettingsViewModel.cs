@@ -14,6 +14,25 @@ namespace AstroHybrid.App.ViewModels
         {
             _mainViewModel = mainViewModel;
             _mainViewModel.PropertyChanged += (sender, e) => OnPropertyChanged(string.Empty);
+            RestoreDefaultsCommand = new RelayCommand(() => { _mainViewModel.RestoreGraphicsDefaults(); OnPropertyChanged(string.Empty); });
+        }
+
+        public System.Windows.Input.ICommand RestoreDefaultsCommand { get; }
+
+        private bool _advancedExpanded;
+        public bool IsAdvancedExpanded
+        {
+            get => _advancedExpanded;
+            set { if (_advancedExpanded != value) { _advancedExpanded = value; OnPropertyChanged(); } }
+        }
+
+        // Preset: the game's two lighting builds. Performance is the non-ray-traced build.
+        public string[] PresetLabels => new[] { "Performance - faster lighting (recommended)", "Quality - ray-traced lighting" };
+
+        public int PresetIndex
+        {
+            get => RayTracingIndex;
+            set { RayTracingIndex = value; OnPropertyChanged(); OnPropertyChanged(nameof(ActiveSummary)); }
         }
 
         // Resolution: group 16:9 presets first (including 4K) before 21:9/32:9 ultrawide options,
@@ -76,6 +95,7 @@ namespace AstroHybrid.App.ViewModels
 
                 hardware.SelectGpu(selected);
                 _mainViewModel.Settings.Gpu = selected;
+                _mainViewModel.ResolveAutoGraphics();
 
                 // DLSS and frame generation need the NVIDIA card: a card without them turns the
                 // options off instead of leaving settings the launcher cannot honour.
@@ -207,6 +227,7 @@ namespace AstroHybrid.App.ViewModels
         }
 
         // With frame generation on, the target sets the game's own limit (as in the classic launcher).
+        public string FpsLimitLabel => IsFpsLimitEnabled ? "FPS limit" : "Target on screen";
         public bool IsFpsLimitEnabled => _mainViewModel.Settings.FrameGenMode == 0;
         public string FpsLimitNote => IsFpsLimitEnabled
             ? "The game may run below the selected limit in demanding scenes."
@@ -229,45 +250,153 @@ namespace AstroHybrid.App.ViewModels
             }
         }
 
-        // Upscaling
-        public string[] UpscaleLabels => new[] { "Game's own (default)", "NVIDIA DLSS - sharper image" };
+        // Upscaling: Auto, Off and only the upscalers this card supports.
+        private bool HasDlss => _mainViewModel.HardwareInfo?.SupportsDlss == true;
 
-        public int UpscaleIndex
+        public string[] UpscaleLabels
         {
-            get => _mainViewModel.Settings.Upscale;
-            set
+            get
             {
-                if (_mainViewModel.Settings.Upscale != value)
-                {
-                    _mainViewModel.Settings.Upscale = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(IsFrameGenAvailable));
-                    OnPropertyChanged(nameof(FrameGenNote));
-                    _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.Settings));
-                }
+                var hw = _mainViewModel.HardwareInfo;
+                var bestUpscale = hw != null ? _mainViewModel.BestSettingsFor(hw).Upscale : 0;
+                var labels = new List<string> { "Auto - " + (bestUpscale == 1 ? "NVIDIA DLSS" : "the game's own upscaling") };
+                labels.Add("Off - the game's own upscaling");
+                if (HasDlss) labels.Add("NVIDIA DLSS - sharper image");
+                return labels.ToArray();
             }
         }
 
-        // Frame Generation
-        public string[] FrameGenLabels => new[] { "Off (default)", "Auto - reach target (recommended)", "Fixed 2x", "Fixed 3x", "Fixed 4x" };
+        public int UpscaleIndex
+        {
+            get
+            {
+                var st = _mainViewModel.Settings;
+                if (st.UpscaleAuto) return 0;
+                return st.Upscale == 1 && HasDlss ? 2 : 1;
+            }
+            set
+            {
+                if (value < 0 || value >= UpscaleLabels.Length || value == UpscaleIndex) return;
+                var st = _mainViewModel.Settings;
+                st.UpscaleAuto = value == 0;
+                if (value != 0) st.Upscale = value == 2 ? 1 : 0;
+                _mainViewModel.ResolveAutoGraphics();
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsFrameGenAvailable));
+                OnPropertyChanged(nameof(FrameGenIndex));
+                OnPropertyChanged(nameof(FrameGenNote));
+                OnPropertyChanged(nameof(ActiveSummary));
+                _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.Settings));
+            }
+        }
+
+        // Frame generation: Auto, Off and only the modes this card supports (3x / 4x need RTX 50).
+        private int MaxMultiplier => Math.Max(2, _mainViewModel.HardwareInfo?.MaxFrameGenMultiplier ?? 2);
+
+        // Combo index -> FrameGenMode (index 0 is Auto).
+        private int[] FrameGenModes
+        {
+            get
+            {
+                var modes = new List<int> { -1, 0, 1, 2 };
+                if (MaxMultiplier >= 3) modes.Add(3);
+                if (MaxMultiplier >= 4) modes.Add(4);
+                return modes.ToArray();
+            }
+        }
+
+        public string[] FrameGenLabels
+        {
+            get
+            {
+                var hw = _mainViewModel.HardwareInfo;
+                var bestFg = hw != null ? _mainViewModel.BestSettingsFor(hw).FrameGen : 0;
+                var labels = new List<string>
+                {
+                    "Auto - " + (bestFg != 0 ? "on, reaches the target below" : "off"),
+                    "Off",
+                    MaxMultiplier > 2 ? "Dynamic - 2x to " + MaxMultiplier + "x to reach the target" : "On - 2x to reach the target",
+                    "Fixed 2x",
+                };
+                if (MaxMultiplier >= 3) labels.Add("Fixed 3x");
+                if (MaxMultiplier >= 4) labels.Add("Fixed 4x");
+                return labels.ToArray();
+            }
+        }
 
         public int FrameGenIndex
         {
-            get => _mainViewModel.Settings.FrameGenMode;
+            get
+            {
+                var st = _mainViewModel.Settings;
+                if (st.FrameGenAuto) return 0;
+                int i = Array.IndexOf(FrameGenModes, st.FrameGenMode);
+                return i > 0 ? i : 1;
+            }
             set
             {
-                if (_mainViewModel.Settings.FrameGenMode != value)
+                var modes = FrameGenModes;
+                if (value < 0 || value >= modes.Length || value == FrameGenIndex) return;
+                var st = _mainViewModel.Settings;
+                st.FrameGenAuto = value == 0;
+                if (value != 0) st.FrameGenMode = modes[value];
+                _mainViewModel.ResolveAutoGraphics();
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsFrameGenTargetEnabled));
+                OnPropertyChanged(nameof(FrameGenNote));
+                OnPropertyChanged(nameof(IsFpsLimitEnabled));
+                OnPropertyChanged(nameof(IsVSyncAvailable));
+                OnPropertyChanged(nameof(VSyncNote));
+                OnPropertyChanged(nameof(FpsLimitNote));
+                OnPropertyChanged(nameof(ActiveSummary));
+                _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.Settings));
+            }
+        }
+
+        // DLSS quality (#156), shown under Advanced while DLSS is the upscaler.
+        public string[] DlssQualityLabels => new[] { "Quality (default)", "Balanced", "Performance", "DLAA - native resolution, sharpest" };
+
+        public int DlssQualityIndex
+        {
+            get => _mainViewModel.Settings.DlssQuality;
+            set
+            {
+                if (value < 0 || value > 3 || _mainViewModel.Settings.DlssQuality == value) return;
+                _mainViewModel.Settings.DlssQuality = value;
+                OnPropertyChanged();
+                _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.Settings));
+            }
+        }
+
+        public bool ShowDlssQuality => _mainViewModel.Settings.Upscale == 1 && HasDlss;
+
+        public bool ShowFrameGen => _mainViewModel.HardwareInfo?.SupportsFrameGeneration == true;
+        public bool ShowFrameGenUnavailable => !ShowFrameGen;
+        public string FrameGenUnavailableNote => "Frame generation needs an NVIDIA RTX 40 or newer card, so it is not offered on this graphics card.";
+
+        // What will actually run with the current choices, in plain words.
+        public string ActiveSummary
+        {
+            get
+            {
+                var st = _mainViewModel.Settings;
+                var parts = new List<string>();
+                parts.Add(st.Lighting == 1 ? "ray-traced lighting" : "faster lighting");
+                parts.Add(st.Upscale == 1 ? "DLSS upscaling" : "the game's own upscaling");
+                if (st.FrameGenMode != 0)
                 {
-                    _mainViewModel.Settings.FrameGenMode = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(IsFrameGenTargetEnabled));
-                    OnPropertyChanged(nameof(FrameGenNote));
-                    OnPropertyChanged(nameof(IsFpsLimitEnabled));
-                    OnPropertyChanged(nameof(IsVSyncAvailable));
-                    OnPropertyChanged(nameof(VSyncNote));
-                    OnPropertyChanged(nameof(FpsLimitNote));
-                    _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.Settings));
+                    var targetValues = new[] { 0, 50, 60, 90, 120, 144, 165 };
+                    int goal = st.FrameGenTarget >= 0 && st.FrameGenTarget < targetValues.Length ? targetValues[st.FrameGenTarget] : 60;
+                    string fg = st.FrameGenMode == 1 ? "frame generation" : st.FrameGenMode + "x frame generation";
+                    parts.Add(goal > 0 ? fg + " to " + goal + " FPS on screen" : fg);
                 }
+                else
+                {
+                    var fps = new[] { "30", "35", "45", "50", "55", "60", "unlimited" };
+                    parts.Add((st.Fps >= 0 && st.Fps < fps.Length ? fps[st.Fps] : "30") + " FPS limit");
+                }
+                if (st.LowLatency || st.FrameGenMode != 0) parts.Add("Reflex");
+                return "Active: " + string.Join(", ", parts) + ".";
             }
         }
 
@@ -322,9 +451,9 @@ namespace AstroHybrid.App.ViewModels
         }
 
         // Computed properties for UI state
-        public bool IsFrameGenAvailable => _mainViewModel.HardwareInfo?.SupportsFrameGeneration == true && UpscaleIndex != 0;
+        public bool IsFrameGenAvailable => _mainViewModel.HardwareInfo?.SupportsFrameGeneration == true && _mainViewModel.Settings.Upscale != 0;
 
-        public bool IsFrameGenTargetEnabled => FrameGenIndex != 0;
+        public bool IsFrameGenTargetEnabled => _mainViewModel.Settings.FrameGenMode != 0;
 
         public bool SupportsDlss => _mainViewModel.HardwareInfo?.SupportsDlss == true;
 
@@ -334,14 +463,17 @@ namespace AstroHybrid.App.ViewModels
         {
             get
             {
-                if (FrameGenIndex == 0)
+                int mode = _mainViewModel.Settings.FrameGenMode;
+                if (!IsFrameGenAvailable)
+                    return "Frame generation needs DLSS upscaling: choose Auto or NVIDIA DLSS above.";
+                if (mode == 0)
                     return "Frame generation multiplies the frames you see (30 FPS limit x2 = 60 on screen) and turns Reflex on itself. It runs only while the game window is focused. Do not also use NVIDIA Smooth Motion.";
 
                 var targetValues = new[] { 0, 50, 60, 90, 120, 144, 165 };
                 int goal = FrameGenTargetIndex >= 0 && FrameGenTargetIndex < targetValues.Length ? targetValues[FrameGenTargetIndex] : 60;
-                int mult = FrameGenIndex == 1 ? 2 : FrameGenIndex;
+                int mult = mode == 1 ? 2 : mode;
 
-                if (FrameGenIndex == 1 && goal != 0)
+                if (mode == 1 && goal != 0)
                 {
                     int limit = Math.Max(30, goal / 2);
                     return $"Game up to {limit} FPS; x2 to x4 picked in game to stay at {goal}+ FPS on screen";

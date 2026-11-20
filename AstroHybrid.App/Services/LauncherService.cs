@@ -320,6 +320,9 @@ namespace AstroHybrid.App.Services
             if (settings.Upscale != 0)
             {
                 env["ASTROHYBRID_DLSS"] = "1";
+                var dlssQuality = new[] { "quality", "balanced", "performance", "dlaa" };
+                if (settings.DlssQuality > 0 && settings.DlssQuality < dlssQuality.Length)
+                    env["ASTROHYBRID_DLSS_QUALITY"] = dlssQuality[settings.DlssQuality];
             }
 
             // Frame generation plan (AstroBotLauncher.FrameGenPlan): the game is never capped below 30.

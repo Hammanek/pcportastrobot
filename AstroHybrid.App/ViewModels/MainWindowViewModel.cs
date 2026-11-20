@@ -234,8 +234,9 @@ namespace AstroHybrid.App.ViewModels
                     ApplyBestSettings();
                 }
 
+                ResolveAutoGraphics();
                 if (HardwareInfo != null)
-                    Settings.Sanitize(HardwareInfo.SupportsDlss, HardwareInfo.SupportsFrameGeneration, HardwareInfo.SupportsReflex);
+                    Settings.Sanitize(HardwareInfo.SupportsDlss, HardwareInfo.SupportsFrameGeneration, HardwareInfo.SupportsReflex, HardwareInfo.MaxFrameGenMultiplier);
                 else
                     Settings.Sanitize();
                 _settingsManager.Save(Settings);
@@ -357,6 +358,8 @@ namespace AstroHybrid.App.ViewModels
             Settings.FrameGenMode = best.FrameGen;
             Settings.FrameGenTarget = best.Target;
             Settings.LowLatency = best.LowLatency;
+            Settings.UpscaleAuto = true;
+            Settings.FrameGenAuto = true;
             Settings.Controller = 0; // Auto
             Settings.RumblePercent = 70; // Medium
             Settings.Rumble = RumbleSetting.ToLegacyIndex(70);
@@ -364,6 +367,54 @@ namespace AstroHybrid.App.ViewModels
             _settingsManager.Save(Settings);
             StatusMessage = "Applied best settings for this PC";
         }
+
+        // Graphics page "Auto": the upscaler and frame generation the selected card supports best.
+        // Called at start-up (the card or driver may have changed) and when the card or the choice changes.
+        public void ResolveAutoGraphics()
+        {
+            if (HardwareInfo == null) return;
+            var best = PickBestSettings(HardwareInfo);
+            if (Settings.UpscaleAuto) Settings.Upscale = best.Upscale;
+            if (Settings.FrameGenAuto)
+            {
+                bool wasOff = Settings.FrameGenMode == 0;
+                Settings.FrameGenMode = Settings.Upscale == 0 ? 0 : best.FrameGen;
+                if (wasOff && Settings.FrameGenMode != 0) Settings.FrameGenTarget = best.Target;
+            }
+            if (Settings.Upscale == 0) Settings.FrameGenMode = 0;
+        }
+
+        // Restore Defaults on the Graphics page: graphics only. Controller, language, game folder and
+        // advanced (system) options stay as they are.
+        public void RestoreGraphicsDefaults()
+        {
+            if (HardwareInfo == null) return;
+            var defaults = new AppSettings();
+            var best = PickBestSettings(HardwareInfo);
+            Settings.Lighting = defaults.Lighting;
+            Settings.Fps = defaults.Fps;
+            Settings.Size = best.Size;
+            Settings.Ultrawide = best.Ultrawide;
+            Settings.Fullscreen = defaults.Fullscreen;
+            Settings.VSync = defaults.VSync;
+            Settings.Overlay = defaults.Overlay;
+            Settings.DlssQuality = defaults.DlssQuality;
+            Settings.Gpu = -1;
+            HardwareInfo.SelectGpu(-1);
+            best = PickBestSettings(HardwareInfo);
+            Settings.UpscaleAuto = true;
+            Settings.FrameGenAuto = true;
+            Settings.Upscale = best.Upscale;
+            Settings.FrameGenMode = best.FrameGen;
+            Settings.FrameGenTarget = best.Target;
+            Settings.LowLatency = best.LowLatency;
+            _settingsManager.Save(Settings);
+            StatusMessage = "Graphics settings restored to the defaults for this PC";
+            OnPropertyChanged(nameof(HardwareInfo));
+            OnPropertyChanged(nameof(Settings));
+        }
+
+        internal (int Size, bool Ultrawide, int Upscale, int FrameGen, int Target, bool LowLatency) BestSettingsFor(HardwareInfo pc) => PickBestSettings(pc);
 
         private void RefreshControllers()
         {
