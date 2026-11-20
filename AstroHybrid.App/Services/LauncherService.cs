@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using AstroHybrid.App.Models;
@@ -17,6 +18,17 @@ namespace AstroHybrid.App.Services
         {
             _rootDirectory = rootDirectory;
             _settingsManager = new SettingsManager(rootDirectory);
+        }
+
+        private void AppendDebugLog(string message)
+        {
+            try
+            {
+                var logPath = Path.Combine(_rootDirectory, "Logs", "astrohybrid-debug.log");
+                Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
+                File.AppendAllText(logPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}\n");
+            }
+            catch { }
         }
 
         public async Task<int> LaunchGameAsync(AppSettings settings, HardwareInfo? hardware = null)
@@ -225,6 +237,20 @@ namespace AstroHybrid.App.Services
 
             if (!File.Exists(Path.Combine(runHybrid, candidates[0])))
                 new GameSetup(_rootDirectory).EnsureVariantExecutables();
+
+            // Bigger worker command buffers (#159): an install set up by 1.1.0 - 1.2.5 has 8 MiB, which
+            // ran out in booster_construction. Raised to 16 MiB once per executable; a failure here only
+            // keeps the old size, it never stops the game from starting.
+            try
+            {
+                var setup = new GameSetup(_rootDirectory);
+                foreach (var candidate in candidates.Concat(new[] { "AstroBot.exe" }).Distinct())
+                    setup.UpgradeCommandBufferTable(candidate);
+            }
+            catch (Exception ex)
+            {
+                AppendDebugLog($"command buffer upgrade skipped: {ex.Message}");
+            }
 
             if (settings.Lighting >= 0 && settings.Lighting <= 1)
             {
