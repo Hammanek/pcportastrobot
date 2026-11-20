@@ -143,10 +143,24 @@ if "%ASTROHYBRID_CLEAR_SHADER_CACHE_ON_STARTUP%"=="1" (
 
 rem Memory pressure handling for high VRAM usage (#161, #157)
 if "%ASTROHYBRID_MEMORY_PRESSURE_HANDLING%"=="1" (
-    rem Set VRAM limit to 90% of available if not explicitly set
+    rem Auto-detect GPU VRAM if not explicitly set (0 = auto)
     if "%ASTROHYBRID_VRAM_LIMIT_MB%"=="0" (
-        rem This would need a tool to detect GPU VRAM; for now set a reasonable default
-        set "ASTROHYBRID_VRAM_LIMIT_MB=6144"
+        rem Try to detect GPU VRAM using PowerShell script
+        set "VRAM_DETECTED=0"
+        if exist "%ROOT%Tools\hybrid\get-gpu-vram.cmd" (
+            for /f "usebackq delims=" %%A in (`"%ROOT%Tools\hybrid\get-gpu-vram.cmd" /format mb`) do (
+                set "VRAM_DETECTED=%%A"
+            )
+        )
+        if %VRAM_DETECTED% GTR 0 (
+            rem Use 90% of detected VRAM as limit
+            set /a "ASTROHYBRID_VRAM_LIMIT_MB=%VRAM_DETECTED% * 90 / 100"
+            echo [Memory] Auto-detected GPU VRAM: %VRAM_DETECTED% MB, limit set to %ASTROHYBRID_VRAM_LIMIT_MB% MB (90%)
+        ) else (
+            rem Fallback to reasonable default
+            set "ASTROHYBRID_VRAM_LIMIT_MB=6144"
+            echo [Memory] VRAM detection failed, using default: %ASTROHYBRID_VRAM_LIMIT_MB% MB
+        )
     )
     rem Enable texture streaming quality reduction under pressure
     set "ASTROHYBRID_TEXTURE_STREAMING_QUALITY=1"
