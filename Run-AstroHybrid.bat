@@ -187,4 +187,57 @@ echo Logging to Logs\hybrid-run.out.log / Logs\hybrid-run.err.log
 start "" /b /wait /%ASTROHYBRID_PRIORITY% "%ROOT%Build\RunHybrid\%ASTROHYBRID_EXE%" %ASTROHYBRID_EXTRA_ARGS% %* 1>"%ROOT%Logs\hybrid-run.out.log" 2>"%ROOT%Logs\hybrid-run.err.log"
 set CODE=%ERRORLEVEL%
 echo AstroBot.exe exited with %CODE%
+
+rem Post-crash diagnostics collection (if game crashed)
+if %CODE% NEQ 0 (
+    echo [Post-Crash] Game exited with error code %CODE%, collecting diagnostics...
+    
+    rem Create crash report with timestamp
+    set "CRASH_TIME=%DATE% %TIME%"
+    set "CRASH_REPORT=%ROOT%Logs\crash-report-%DATE:~-4,4%%DATE:~-10,2%%DATE:~-7,2%-%TIME:~0,2%%TIME:~3,2%%TIME:~6,2%.txt"
+    set "CRASH_REPORT=%CRASH_REPORT: =0%"
+    set "CRASH_REPORT=%CRASH_REPORT:/=-%"
+    set "CRASH_REPORT=%CRASH_REPORT::=-%"
+    
+    echo AstroHybrid Crash Report > "%CRASH_REPORT%"
+    echo ======================== >> "%CRASH_REPORT%"
+    echo Timestamp: %CRASH_TIME% >> "%CRASH_REPORT%"
+    echo Exit Code: %CODE% >> "%CRASH_REPORT%"
+    echo Executable: %ASTROHYBRID_EXE% >> "%CRASH_REPORT%"
+    echo Priority: %ASTROHYBRID_PRIORITY% >> "%CRASH_REPORT%"
+    echo Resolution: %KYTY_GPU_WIDTH%x%KYTY_GPU_HEIGHT% >> "%CRASH_REPORT%"
+    echo. >> "%CRASH_REPORT%"
+    
+    rem Environment variables
+    echo [Environment Variables] >> "%CRASH_REPORT%"
+    set ASTROHYBRID >> "%CRASH_REPORT%" 2>nul
+    set KYTY >> "%CRASH_REPORT%" 2>nul
+    set APS5 >> "%CRASH_REPORT%" 2>nul
+    echo. >> "%CRASH_REPORT%"
+    
+    rem Last 50 lines of stdout
+    echo [Last 50 lines of stdout] >> "%CRASH_REPORT%"
+    if exist "%ROOT%Logs\hybrid-run.out.log" (
+        powershell -NoProfile -Command "Get-Content '%ROOT%Logs\hybrid-run.out.log' -Tail 50" >> "%CRASH_REPORT%" 2>nul
+    )
+    echo. >> "%CRASH_REPORT%"
+    
+    rem Last 50 lines of stderr
+    echo [Last 50 lines of stderr] >> "%CRASH_REPORT%"
+    if exist "%ROOT%Logs\hybrid-run.err.log" (
+        powershell -NoProfile -Command "Get-Content '%ROOT%Logs\hybrid-run.err.log' -Tail 50" >> "%CRASH_REPORT%" 2>nul
+    )
+    echo. >> "%CRASH_REPORT%"
+    
+    rem System info if available
+    if exist "%ROOT%Logs\system-info.json" (
+        echo [System Info] >> "%CRASH_REPORT%"
+        type "%ROOT%Logs\system-info.json" >> "%CRASH_REPORT%" 2>nul
+        echo. >> "%CRASH_REPORT%"
+    )
+    
+    echo [Post-Crash] Crash report saved to: %CRASH_REPORT%
+    echo [Post-Crash] Please attach this file when reporting the issue on GitHub
+)
+
 exit /b %CODE%
