@@ -19,7 +19,11 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WINE="${WINE:-wine}"
-command -v "$WINE" >/dev/null || { echo "wine not found (set WINE=/path/to/wine)" >&2; exit 1; }
+# --help works without Wine installed; everything else needs it.
+case "${1:-}" in
+    -h|--help) ;;
+    *) command -v "$WINE" >/dev/null || { echo "wine not found (set WINE=/path/to/wine)" >&2; exit 1; } ;;
+esac
 
 # Wine marks a Bluetooth DualSense's parent devnode only as WINEBUS\WINE_COMP_HID, so SDL (inside
 # kyty_gpu.dll) treats it as USB and sends USB-format output reports: no rumble, haptics or light bar

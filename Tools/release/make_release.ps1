@@ -28,6 +28,13 @@ foreach ($extraBat in 'Run-AstroHybrid-DLSS.bat', 'Run-AstroHybrid-FG.bat') {
     $batPath = Join-Path $root $extraBat
     if (Test-Path $batPath) { Copy-Item $batPath $stage }
 }
+# The Linux (Wine) start script the README's Linux section uses (#123, #124), with LF line endings:
+# bash fails on CRLF, which a Windows checkout may have.
+$linuxSh = Join-Path $root 'Run-AstroHybrid-Linux.sh'
+if (Test-Path $linuxSh) {
+    $text = [IO.File]::ReadAllText($linuxSh) -replace "`r`n", "`n"
+    [IO.File]::WriteAllText((Join-Path $stage 'Run-AstroHybrid-Linux.sh'), $text, (New-Object Text.UTF8Encoding $false))
+}
 
 # AnyPS5's relinker (needs only the Universal C runtime that ships with Windows 10/11).
 Copy-Item (Join-Path $root 'Build\anyps5\core\relinker\relinker.exe') (Join-Path $stage 'tools')
