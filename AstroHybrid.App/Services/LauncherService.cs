@@ -45,12 +45,23 @@ namespace AstroHybrid.App.Services
                 throw new FileNotFoundException("AstroBot.exe not found in RunHybrid", runHybridPath);
             }
 
+            // Pre-launch validation: check for common issues that cause immediate crashes
+            var validationResult = await ValidateLaunchEnvironmentAsync(runHybridPath, settings, hardware);
+            if (!validationResult.IsValid)
+            {
+                throw new InvalidOperationException(validationResult.ErrorMessage);
+            }
+
             // Save settings before launch
             settings.LastLaunched = DateTime.Now;
             _settingsManager.Save(settings);
 
             // Build environment variables from settings
             var envVars = BuildEnvironmentVariables(settings, hardware);
+
+            // Add crash diagnostics environment variables
+            envVars["ASTROHYBRID_CRASH_DIAGNOSTICS"] = "1";
+            envVars["ASTROHYBRID_LAUNCH_TIME"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
 
             var psi = new ProcessStartInfo
             {
@@ -82,6 +93,7 @@ namespace AstroHybrid.App.Services
                 if (!string.IsNullOrEmpty(e.Data))
                 {
                     System.Diagnostics.Debug.WriteLine($"[OUT] {e.Data}");
+                    AppendDebugLog($"[GAME OUT] {e.Data}");
                 }
             };
 
@@ -90,14 +102,158 @@ namespace AstroHybrid.App.Services
                 if (!string.IsNullOrEmpty(e.Data))
                 {
                     System.Diagnostics.Debug.WriteLine($"[ERR] {e.Data}");
+                    AppendDebugLog($"[GAME ERR] {e.Data}");
                 }
             };
 
-            process.Start();
+            try
+            {
+                process.Start();
+                AppendDebugLog($"Game process started (PID: {process.Id})");
+            }
+            catch (Exception ex)
+            {
+                AppendDebugLog($"Failed to start game process: {ex.Message}");
+                throw new InvalidOperationException($"Failed to start game: {ex.Message}", ex);
+            }
+
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
 
+            // Add timeout for process startup (detect immediate crashes)
+            var startupTimeout = Task.Delay(TimeSpan.FromSeconds(30));
+            var completedTask = await Task.WhenAny(tcs.Task, startupTimeout);
+            
+            if (completedTask == startupTimeout)
+            {
+                // Process hasn't exited but startup is taking too long - this is normal for first launch
+                AppendDebugLog("Game startup taking longer than 30s, continuing to wait...");
+            }
+
             return await tcs.Task;
+        }
+
+        private async Task<LaunchValidationResult> ValidateLaunchEnvironmentAsync(string runHybridPath, AppSettings settings, HardwareInfo? hardware)
+        {
+            var errors = new List<string>();
+
+            // Check for required DLLs
+            var requiredDlls = new[] { "kyty_gpu.dll", "astrohybrid_host.dll" };
+            foreach (var dll in requiredDlls)
+            {
+                if (!File.Exists(Path.Combine(runHybridPath, dll)))
+                {
+                    errors.Add($"Required DLL not found: {dll}");
+                }
+            }
+
+            // Check Vulkan support
+            if (!IsVulkanSupported())
+            {
+                errors.Add("Vulkan is not supported on this system. Please update GPU drivers.");
+            }
+
+            // Check for mesh shader support (required for Astro Bot)
+            if (!HasMeshShaderSupport())
+            {
+                errors.Add("GPU does not support VK_EXT_mesh_shader (required by Astro Bot). Minimum: RTX 20 series, RX 6000 series, or Intel Arc.");
+            }
+
+            // Validate GPU selection if explicit
+            if (hardware != null && hardware.SelectedGpuIndex >= 0)
+            {
+                var gpu = hardware.SelectedGpu;
+                if (gpu != null && !IsGpuAvailable(gpu.Name))
+                {
+                    errors.Add($"Selected GPU '{gpu.Name}' is not available. Please select 'Automatic' or a different GPU.");
+                }
+            }
+
+            // Check for NVIDIA DLSS/Frame Gen requirements
+            if (settings.Upscale != 0 || settings.FrameGenMode != 0)
+            {
+                if (!File.Exists(Path.Combine(runHybridPath, "nvngx_dlss.dll")))
+                {
+                    errors.Add("DLSS runtime not found (nvngx_dlss.dll). Please ensure NVIDIA drivers are installed and DLSS runtime is in the game folder.");
+                }
+                if (settings.FrameGenMode != 0 && !File.Exists(Path.Combine(runHybridPath, "nvngx_dlssg.dll")))
+                {
+                    errors.Add("DLSS Frame Generation runtime not found (nvngx_dlssg.dll). Frame Generation requires RTX 40/50 series and latest NVIDIA drivers.");
+                }
+            }
+
+            // Check disk space
+            var driveInfo = new DriveInfo(Path.GetPathRoot(runHybridPath)!);
+            if (driveInfo.AvailableFreeSpace < 1024 * 1024 * 1024) // 1 GB
+            {
+                errors.Add("Insufficient disk space (need at least 1 GB free).");
+            }
+
+            if (errors.Count > 0)
+            {
+                return new LaunchValidationResult { IsValid = false, ErrorMessage = "Launch validation failed:\n" + string.Join("\n", errors) };
+            }
+
+            return new LaunchValidationResult { IsValid = true };
+        }
+
+        private bool IsVulkanSupported()
+        {
+            try
+            {
+                // Try to load vulkan-1.dll
+                var vulkanPath = Path.Combine(Environment.SystemDirectory, "vulkan-1.dll");
+                return File.Exists(vulkanPath);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private bool HasMeshShaderSupport()
+        {
+            // This is a heuristic - actual mesh shader support requires Vulkan query
+            // For now, check if we have a reasonably modern GPU
+            try
+            {
+                using var searcher = new System.Management.ManagementObjectSearcher("SELECT Name FROM Win32_VideoController");
+                foreach (var obj in searcher.Get())
+                {
+                    var name = obj["Name"]?.ToString() ?? "";
+                    if (name.Contains("RTX") || name.Contains("RX 6") || name.Contains("RX 7") || 
+                        name.Contains("Arc") || name.Contains("RDNA 2") || name.Contains("RDNA 3"))
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch { }
+            return false; // Conservative: assume no support if we can't detect
+        }
+
+        private bool IsGpuAvailable(string gpuName)
+        {
+            try
+            {
+                using var searcher = new System.Management.ManagementObjectSearcher("SELECT Name FROM Win32_VideoController");
+                foreach (var obj in searcher.Get())
+                {
+                    var name = obj["Name"]?.ToString() ?? "";
+                    if (name.Contains(gpuName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        private class LaunchValidationResult
+        {
+            public bool IsValid { get; set; }
+            public string ErrorMessage { get; set; } = "";
         }
 
         public async Task<int> LaunchGameWithDlssAsync(AppSettings settings, HardwareInfo? hardware = null)
@@ -114,6 +270,13 @@ namespace AstroHybrid.App.Services
                 throw new FileNotFoundException("AstroBot.exe not found in RunHybrid", runHybridPath);
             }
 
+            // Pre-launch validation
+            var validationResult = await ValidateLaunchEnvironmentAsync(runHybridPath, settings, hardware);
+            if (!validationResult.IsValid)
+            {
+                throw new InvalidOperationException(validationResult.ErrorMessage);
+            }
+
             settings.LastLaunched = DateTime.Now;
             _settingsManager.Save(settings);
 
@@ -121,6 +284,8 @@ namespace AstroHybrid.App.Services
             // DLSS-specific overrides
             envVars["ASTROHYBRID_DLSS"] = "1";
             envVars["ASTROHYBRID_CUDA_HOLE"] = "1";
+            envVars["ASTROHYBRID_CRASH_DIAGNOSTICS"] = "1";
+            envVars["ASTROHYBRID_LAUNCH_TIME"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
 
             var psi = new ProcessStartInfo
             {
@@ -128,7 +293,9 @@ namespace AstroHybrid.App.Services
                 Arguments = $"/c \"{batPath}\"",
                 WorkingDirectory = _rootDirectory,
                 UseShellExecute = false,
-                CreateNoWindow = true
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
             };
 
             foreach (var kvp in envVars)
@@ -145,7 +312,35 @@ namespace AstroHybrid.App.Services
                 tcs.SetResult(process.ExitCode);
             };
 
-            process.Start();
+            process.OutputDataReceived += (sender, e) =>
+            {
+                if (!string.IsNullOrEmpty(e.Data))
+                {
+                    AppendDebugLog($"[GAME OUT] {e.Data}");
+                }
+            };
+
+            process.ErrorDataReceived += (sender, e) =>
+            {
+                if (!string.IsNullOrEmpty(e.Data))
+                {
+                    AppendDebugLog($"[GAME ERR] {e.Data}");
+                }
+            };
+
+            try
+            {
+                process.Start();
+                AppendDebugLog($"Game process started (PID: {process.Id})");
+            }
+            catch (Exception ex)
+            {
+                AppendDebugLog($"Failed to start game process: {ex.Message}");
+                throw new InvalidOperationException($"Failed to start game: {ex.Message}", ex);
+            }
+
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
 
             return await tcs.Task;
         }
@@ -164,6 +359,13 @@ namespace AstroHybrid.App.Services
                 throw new FileNotFoundException("AstroBot.exe not found in RunHybrid", runHybridPath);
             }
 
+            // Pre-launch validation
+            var validationResult = await ValidateLaunchEnvironmentAsync(runHybridPath, settings, hardware);
+            if (!validationResult.IsValid)
+            {
+                throw new InvalidOperationException(validationResult.ErrorMessage);
+            }
+
             settings.LastLaunched = DateTime.Now;
             _settingsManager.Save(settings);
 
@@ -172,6 +374,8 @@ namespace AstroHybrid.App.Services
             envVars["ASTROHYBRID_DLSSG"] = "1";
             envVars["ASTROHYBRID_CUDA_HOLE"] = "1";
             envVars["ASTROHYBRID_DLSS"] = "1";
+            envVars["ASTROHYBRID_CRASH_DIAGNOSTICS"] = "1";
+            envVars["ASTROHYBRID_LAUNCH_TIME"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
 
             var psi = new ProcessStartInfo
             {
@@ -179,7 +383,9 @@ namespace AstroHybrid.App.Services
                 Arguments = $"/c \"{batPath}\"",
                 WorkingDirectory = _rootDirectory,
                 UseShellExecute = false,
-                CreateNoWindow = true
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
             };
 
             foreach (var kvp in envVars)
@@ -196,7 +402,35 @@ namespace AstroHybrid.App.Services
                 tcs.SetResult(process.ExitCode);
             };
 
-            process.Start();
+            process.OutputDataReceived += (sender, e) =>
+            {
+                if (!string.IsNullOrEmpty(e.Data))
+                {
+                    AppendDebugLog($"[GAME OUT] {e.Data}");
+                }
+            };
+
+            process.ErrorDataReceived += (sender, e) =>
+            {
+                if (!string.IsNullOrEmpty(e.Data))
+                {
+                    AppendDebugLog($"[GAME ERR] {e.Data}");
+                }
+            };
+
+            try
+            {
+                process.Start();
+                AppendDebugLog($"Game process started (PID: {process.Id})");
+            }
+            catch (Exception ex)
+            {
+                AppendDebugLog($"Failed to start game process: {ex.Message}");
+                throw new InvalidOperationException($"Failed to start game: {ex.Message}", ex);
+            }
+
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
 
             return await tcs.Task;
         }

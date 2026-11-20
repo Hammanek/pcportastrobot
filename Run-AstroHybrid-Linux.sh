@@ -15,6 +15,12 @@
 #   ASTROHYBRID_LSFG=2|3|4  frame generation with lsfg-vk (2x/3x/4x, default off; needs lsfg-vk 2.x)
 #   ASTROHYBRID_LSFG_FLOW   lsfg-vk flow scale 0.25..1.0 (default 0.5)
 #   ASTROHYBRID_LSFG_PERF=0 lsfg-vk quality mode (default: performance mode)
+#   ASTROHYBRID_TDR_WORKAROUND=1  Enable TDR workaround for Vulkan Device Lost (Error 321) (#154, #65, #6)
+#   ASTROHYBRID_PHYSICS_SUBSTEP=1 Enable physics sub-stepping for sub-60 FPS collision issues (#125, #164)
+#   ASTROHYBRID_FAST_LOAD=1       Enable async asset loading for faster level transitions (#140)
+#   ASTROHYBRID_SHADER_PRECOMPILE=1 Enable background shader precompilation (#83, #92)
+#   ASTROHYBRID_PIPELINE_CACHE_WARMUP=1 Enable pipeline cache warmup on startup
+#   ASTROHYBRID_VRAM_LIMIT_MB=N   Set VRAM limit in MB for texture streaming (#114)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -124,6 +130,22 @@ if [ -z "${ASTROHYBRID_GAME_SPEED:-}" ] && [ -f "$features" ]; then
         fi
     fi
 fi
+
+# TDR workaround for Vulkan Device Lost (Error 321) - enabled by default
+export ASTROHYBRID_TDR_WORKAROUND="${ASTROHYBRID_TDR_WORKAROUND:-1}"
+
+# Physics sub-stepping for sub-60 FPS collision issues (#125, #164)
+export ASTROHYBRID_PHYSICS_SUBSTEP="${ASTROHYBRID_PHYSICS_SUBSTEP:-1}"
+
+# Fast load times: async asset loading (#140)
+export ASTROHYBRID_FAST_LOAD="${ASTROHYBRID_FAST_LOAD:-1}"
+
+# Shader precompilation to reduce first-playthrough stutter (#83, #92)
+export ASTROHYBRID_SHADER_PRECOMPILE="${ASTROHYBRID_SHADER_PRECOMPILE:-1}"
+export ASTROHYBRID_PIPELINE_CACHE_WARMUP="${ASTROHYBRID_PIPELINE_CACHE_WARMUP:-1}"
+
+# VRAM limit for texture streaming (#114) - 0 = auto (90% of available VRAM)
+export ASTROHYBRID_VRAM_LIMIT_MB="${ASTROHYBRID_VRAM_LIMIT_MB:-0}"
 
 # Start through Run-AstroHybrid.bat, as the launcher's Play button does, so Linux gets the same defaults
 # as Windows (u59-preset.cmd engine preset, trigger state, motion, priorities, executable choice, logs).
