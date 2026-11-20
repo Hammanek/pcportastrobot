@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Management;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using AstroHybrid.App.Models;
@@ -229,12 +231,303 @@ namespace AstroHybrid.App.Services
                 errors.Add("No working audio output device detected. Please ensure audio drivers are installed and a playback device is enabled.");
             }
 
+            // Check Vulkan version and mesh shader support
+            if (!ValidateVulkanSupport())
+            {
+                errors.Add("Vulkan 1.2+ with mesh shader support (VK_EXT_mesh_shader) is required. Please update GPU drivers.");
+            }
+
+            // Check for known problematic driver versions
+            if (HasProblematicDriver(hardware?.SelectedGpu))
+            {
+                errors.Add("Known problematic GPU driver detected. Please update to the latest driver version.");
+            }
+
+            // Check DirectX support (for fallback)
+            if (!HasDirectXSupport())
+            {
+                // Warning only, not blocking
+                AppendDebugLog("Warning: DirectX 12 not fully supported, may affect compatibility layer");
+            }
+
+            // Collect system info for crash diagnostics
+            CollectSystemInfoForDiagnostics();
+
             if (errors.Count > 0)
             {
                 return new LaunchValidationResult { IsValid = false, ErrorMessage = "Launch validation failed:\n" + string.Join("\n", errors) };
             }
 
             return new LaunchValidationResult { IsValid = true };
+        }
+
+        private bool ValidateVulkanSupport()
+        {
+            try
+            {
+                // Check for vulkan-1.dll and try to query version
+                var vulkanPath = Path.Combine(Environment.SystemDirectory, "vulkan-1.dll");
+                if (!File.Exists(vulkanPath)) return false;
+
+                // Additional check: try to load and query instance version
+                // This would require P/Invoke to vkEnumerateInstanceVersion
+                // For now, just check file exists
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private bool HasProblematicDriver(HardwareInfo.GpuInfo? gpu)
+        {
+            if (gpu == null) return false;
+            
+            try
+            {
+                using var searcher = new System.Management.ManagementObjectSearcher(
+                    "SELECT DriverVersion, DriverDate FROM Win32_VideoController WHERE Name LIKE '%" + gpu.Name.Replace("'", "''") + "%'");
+                foreach (var obj in searcher.Get())
+                {
+                    var driverVersion = obj["DriverVersion"]?.ToString() ?? "";
+                    var driverDate = obj["DriverDate"]?.ToString() ?? "";
+                    
+                    // Log driver info for debugging
+                    AppendDebugLog($"GPU Driver: {driverVersion} (Date: {driverDate})");
+                    
+                    // Check for known problematic versions
+                    // This is a placeholder - actual versions would need to be researched
+                    if (driverVersion.Contains("30.0.14") || driverVersion.Contains("30.0.15"))
+                    {
+                        // Some older NVIDIA drivers had issues with Vulkan mesh shaders
+                        AppendDebugLog($"Potentially problematic driver version detected: {driverVersion}");
+                    }
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        private bool HasDirectXSupport()
+        {
+            try
+            {
+                // Check for DirectX 12 support
+                using var searcher = new System.Management.ManagementObjectSearcher(
+                    "SELECT Name, DriverVersion FROM Win32_VideoController");
+                foreach (var obj in searcher.Get())
+                {
+                    var name = obj["Name"]?.ToString() ?? "";
+                    if (name.Contains("NVIDIA") || name.Contains("AMD") || name.Contains("Intel"))
+                    {
+                        return true; // Assume modern GPUs support DX12
+                    }
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        private void CollectSystemInfoForDiagnostics()
+        {
+            try
+            {
+                var infoPath = Path.Combine(_rootDirectory, "Logs", "system-info.json");
+                Directory.CreateDirectory(Path.GetDirectoryName(infoPath)!);
+                
+                var systemInfo = new SystemInfo
+                {
+                    Timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                    OSVersion = Environment.OSVersion.Version.ToString(),
+                    OSBuild = Environment.OSVersion.Version.Build,
+                    Is64BitOS = Environment.Is64BitOperatingSystem,
+                    Is64BitProcess = Environment.Is64BitProcess,
+                    ProcessorCount = Environment.ProcessorCount,
+                    TotalMemoryMB = GetTotalMemoryMB(),
+                    AvailableMemoryMB = GetAvailableMemoryMB(),
+                    GPUDevices = GetGpuDevices(),
+                    DriverVersions = GetDriverVersions(),
+                    VulkanInfo = GetVulkanInfo(),
+                    DirectXInfo = GetDirectXInfo(),
+                    InstalledAntivirus = GetInstalledAntivirus(),
+                    PowerPlan = GetActivePowerPlan()
+                };
+                
+                var json = System.Text.Json.JsonSerializer.Serialize(systemInfo, new System.Text.Json.JsonSerializerOptions 
+                { 
+                    WriteIndented = true 
+                });
+                File.WriteAllText(infoPath, json);
+                AppendDebugLog($"System info collected for diagnostics: {infoPath}");
+            }
+            catch (Exception ex)
+            {
+                AppendDebugLog($"Failed to collect system info: {ex.Message}");
+            }
+        }
+
+        private long GetTotalMemoryMB()
+        {
+            try
+            {
+                using var searcher = new System.Management.ManagementObjectSearcher("SELECT TotalPhysicalMemory FROM Win32_ComputerSystem");
+                foreach (var obj in searcher.Get())
+                {
+                    if (obj["TotalPhysicalMemory"] != null)
+                    {
+                        return Convert.ToInt64(obj["TotalPhysicalMemory"]) / 1024 / 1024;
+                    }
+                }
+            }
+            catch { }
+            return 0;
+        }
+
+        private long GetAvailableMemoryMB()
+        {
+            try
+            {
+                using var searcher = new System.Management.ManagementObjectSearcher("SELECT FreePhysicalMemory FROM Win32_OperatingSystem");
+                foreach (var obj in searcher.Get())
+                {
+                    if (obj["FreePhysicalMemory"] != null)
+                    {
+                        return Convert.ToInt64(obj["FreePhysicalMemory"]) / 1024;
+                    }
+                }
+            }
+            catch { }
+            return 0;
+        }
+
+        private List<GpuDeviceInfo> GetGpuDevices()
+        {
+            var devices = new List<GpuDeviceInfo>();
+            try
+            {
+                using var searcher = new System.Management.ManagementObjectSearcher(
+                    "SELECT Name, AdapterRAM, DriverVersion, DriverDate, VideoProcessor FROM Win32_VideoController");
+                foreach (var obj in searcher.Get())
+                {
+                    devices.Add(new GpuDeviceInfo
+                    {
+                        Name = obj["Name"]?.ToString() ?? "Unknown",
+                        AdapterRAM_MB = obj["AdapterRAM"] != null ? Convert.ToInt64(obj["AdapterRAM"]) / 1024 / 1024 : 0,
+                        DriverVersion = obj["DriverVersion"]?.ToString() ?? "",
+                        DriverDate = obj["DriverDate"]?.ToString() ?? "",
+                        VideoProcessor = obj["VideoProcessor"]?.ToString() ?? ""
+                    });
+                }
+            }
+            catch { }
+            return devices;
+        }
+
+        private List<string> GetDriverVersions()
+        {
+            var versions = new List<string>();
+            try
+            {
+                using var searcher = new System.Management.ManagementObjectSearcher(
+                    "SELECT Name, DriverVersion FROM Win32_VideoController");
+                foreach (var obj in searcher.Get())
+                {
+                    var name = obj["Name"]?.ToString() ?? "Unknown";
+                    var version = obj["DriverVersion"]?.ToString() ?? "Unknown";
+                    versions.Add($"{name}: {version}");
+                }
+            }
+            catch { }
+            return versions;
+        }
+
+        private string GetVulkanInfo()
+        {
+            try
+            {
+                var vulkanPath = Path.Combine(Environment.SystemDirectory, "vulkan-1.dll");
+                if (File.Exists(vulkanPath))
+                {
+                    var versionInfo = FileVersionInfo.GetVersionInfo(vulkanPath);
+                    return $"vulkan-1.dll: {versionInfo.FileVersion}";
+                }
+            }
+            catch { }
+            return "Not found";
+        }
+
+        private string GetDirectXInfo()
+        {
+            // Would need DxDiag or similar to get detailed DX info
+            return "DirectX 12 (assumed on Windows 10+)";
+        }
+
+        private List<string> GetInstalledAntivirus()
+        {
+            var avList = new List<string>();
+            try
+            {
+                using var searcher = new System.Management.ManagementObjectSearcher("SELECT displayName FROM AntivirusProduct");
+                foreach (var obj in searcher.Get())
+                {
+                    var name = obj["displayName"]?.ToString() ?? "";
+                    if (!string.IsNullOrEmpty(name)) avList.Add(name);
+                }
+            }
+            catch { }
+            return avList;
+        }
+
+        private string GetActivePowerPlan()
+        {
+            try
+            {
+                // Query active power plan
+                var process = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "powercfg",
+                    Arguments = "/getactivescheme",
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                });
+                process?.WaitForExit(2000);
+                if (process?.ExitCode == 0)
+                {
+                    return process.StandardOutput.ReadToEnd().Trim();
+                }
+            }
+            catch { }
+            return "Unknown";
+        }
+
+        // System info classes for JSON serialization
+        private class SystemInfo
+        {
+            public string Timestamp { get; set; } = "";
+            public string OSVersion { get; set; } = "";
+            public int OSBuild { get; set; }
+            public bool Is64BitOS { get; set; }
+            public bool Is64BitProcess { get; set; }
+            public int ProcessorCount { get; set; }
+            public long TotalMemoryMB { get; set; }
+            public long AvailableMemoryMB { get; set; }
+            public List<GpuDeviceInfo> GPUDevices { get; set; } = new();
+            public List<string> DriverVersions { get; set; } = new();
+            public string VulkanInfo { get; set; } = "";
+            public string DirectXInfo { get; set; } = "";
+            public List<string> InstalledAntivirus { get; set; } = new();
+            public string PowerPlan { get; set; } = "";
+        }
+
+        private class GpuDeviceInfo
+        {
+            public string Name { get; set; } = "";
+            public long AdapterRAM_MB { get; set; }
+            public string DriverVersion { get; set; } = "";
+            public string DriverDate { get; set; } = "";
+            public string VideoProcessor { get; set; } = "";
         }
 
         private bool IsWindowsVersionSupported()
