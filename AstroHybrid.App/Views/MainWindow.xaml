@@ -265,10 +265,21 @@
 
                             <TextBlock Text="{Binding AppVersionText}" FontSize="11" Foreground="#FF5A7094"
                                        Margin="6,10,0,0"/>
-                            <TextBlock FontSize="10.5" Foreground="#FF7C8DB0" Margin="6,3,0,0" TextWrapping="Wrap">
-                                <Run Text="Made by a random Moroccan guy:"/>
-                                <Run Text="A9wad Fassi" FontWeight="Bold" Foreground="#FFFF8FB1"/>
-                            </TextBlock>
+                            <StackPanel Margin="6,8,0,0">
+                                <TextBlock Text="Made by a random Moroccan guy" FontSize="12.5" FontWeight="SemiBold"
+                                           Foreground="#FFCBD5F5" TextWrapping="Wrap"/>
+                                <TextBlock Text="A9wad Fassi" FontSize="20" FontWeight="ExtraBold" Margin="0,1,0,0">
+                                    <TextBlock.Foreground>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                            <GradientStop Color="#FFFF8FB1" Offset="0"/>
+                                            <GradientStop Color="#FFFFB86B" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </TextBlock.Foreground>
+                                    <TextBlock.Effect>
+                                        <DropShadowEffect Color="#FFFF8FB1" BlurRadius="10" ShadowDepth="0" Opacity="0.55"/>
+                                    </TextBlock.Effect>
+                                </TextBlock>
+                            </StackPanel>
                         </StackPanel>
                     </Grid>
                 </Border>
