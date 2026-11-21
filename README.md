@@ -1,6 +1,6 @@
 # Astro Bot native PC port (AstroHybrid): DLSS Frame Generation, Reflex, any controller
 
-
+<a href="https://recomplauncher.com/game/pcportastrobot"><picture><source media="(prefers-color-scheme: dark)" srcset="https://recomplauncher.com/assets/press/launcher/badge-light.svg"><img alt="Get it on RecompLauncher" src="https://recomplauncher.com/assets/press/launcher/badge-dark.svg" height="48"></picture></a>
 
 A personal research project: running my own legally owned PS5 copy of **Astro Bot** (PPSA21567, v01.019.000)
 natively on Windows, with NVIDIA DLSS Super Resolution, DLSS (Multi) Frame Generation and Reflex added on top.
@@ -18,6 +18,10 @@ shaders, keys, saves or game artwork. You need your own decrypted dump of the ga
 3. The app picks the best settings for your PC once (graphics card, CPU, RAM, display); change anything on the
    Graphics, Controller and Advanced pages.
 4. Press **Play**.
+
+**With RecompLauncher:** install AstroHybrid from its page, pick your dump folder on the setup screen, and press
+Play. The launcher runs the same setup, shows the graphics settings on the game's page, and backs up your saves
+(`recomplauncher.json` in the release describes all of it).
 
 The download is the same build as the development PC: the same PS5 system libraries, `kyty_gpu.dll` (DLSS,
 frame generation, Reflex, controller fixes), the same launcher settings, and setup makes the same `AstroBot.exe`

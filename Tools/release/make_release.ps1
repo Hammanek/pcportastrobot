@@ -24,6 +24,8 @@ $config = Join-Path $root 'AstroHybrid.App\obj\Release\AstroHybrid.exe.config'
 if (-not (Select-String -Path $config -Pattern 'bindingRedirect' -Quiet)) { throw 'generated config has no binding redirects' }
 Copy-Item $config (Join-Path $stage 'AstroHybrid.exe.config')
 Copy-Item (Join-Path $root 'Run-AstroHybrid.bat') $stage
+# RecompLauncher reads it from the top of the zip, next to AstroHybrid.exe.
+Copy-Item (Join-Path $root 'recomplauncher.json') $stage
 foreach ($extraBat in 'Run-AstroHybrid-DLSS.bat', 'Run-AstroHybrid-FG.bat') {
     $batPath = Join-Path $root $extraBat
     if (Test-Path $batPath) { Copy-Item $batPath $stage }
@@ -106,7 +108,8 @@ $bad = Get-ChildItem $stage -Recurse -File | Where-Object {
 $bad = $bad | Where-Object { $_.Name -ne 'AstroBot Launcher.exe' }
 if ($bad) { $bad.FullName; throw 'game or session files found in the release' }
 
-$zip = Join-Path $Out "$name.zip"
+# System and processor in the name, so launchers pick the file for the PC (RecompLauncher).
+$zip = Join-Path $Out "$name-Windows-x64.zip"
 if (Test-Path $zip) { Remove-Item $zip }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 # Files at the zip's root, no wrapper folder: the launcher's updater (1.2.2 and older) copies the archive's
