@@ -76,6 +76,8 @@ namespace AstroHybrid.App.ViewModels
             NavigateCommand = new RelayCommand<LauncherPage>(page => CurrentPage = page);
             LaunchGameCommand = new RelayCommand(async () => await LaunchGameAsync(), () => !IsLaunching);
             ApplyBestSettingsCommand = new RelayCommand(ApplyBestSettings);
+            OpenSupportCommand = new RelayCommand(() => OpenLink(SupportUrl));
+            OpenContributeCommand = new RelayCommand(() => OpenLink(ContributeUrl));
             RefreshControllersCommand = new RelayCommand(RefreshControllers);
             RepairInstallationCommand = new RelayCommand(async () => await RepairInstallationAsync());
             RebuildInstallationCommand = new RelayCommand(async () => await RebuildInstallationAsync());
@@ -189,6 +191,25 @@ namespace AstroHybrid.App.ViewModels
         public ICommand NavigateCommand { get; }
         public ICommand LaunchGameCommand { get; }
         public ICommand ApplyBestSettingsCommand { get; }
+
+        // "Fund me" card in the sidebar and the "help the project" banner on the Overview page.
+        public const string SupportUrl = "https://ko-fi.com/justhappyguy";
+        public const string ContributeUrl = "https://github.com/imnotsharingmyname/pcportastrobot";
+        public ICommand OpenSupportCommand { get; }
+        public ICommand OpenContributeCommand { get; }
+
+        private void OpenLink(string url)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = "Could not open the browser";
+                MessageBox.Show($"Could not open {url}\n{ex.Message}", "AstroHybrid", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
         public ICommand RefreshControllersCommand { get; }
         public ICommand RepairInstallationCommand { get; }
         public ICommand RebuildInstallationCommand { get; }

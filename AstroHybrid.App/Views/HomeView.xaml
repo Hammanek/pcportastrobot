@@ -19,6 +19,65 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="0,4,4,16">
 
+            <!-- Help the project banner: contributors with AI models can send performance pull requests -->
+            <Border CornerRadius="14" BorderThickness="1" Padding="18,14" Margin="0,0,0,14">
+                <Border.BorderBrush>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                        <GradientStop Color="#FF38BDF8" Offset="0"/>
+                        <GradientStop Color="#FFA78BFA" Offset="0.5"/>
+                        <GradientStop Color="#FFFF8FB1" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.BorderBrush>
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#FF0B1D3F" Offset="0"/>
+                        <GradientStop Color="#FF1A1540" Offset="0.6"/>
+                        <GradientStop Color="#FF2A1430" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- 60 FPS badge -->
+                    <Border Grid.Column="0" Width="58" Height="58" CornerRadius="29" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#FF38BDF8" Offset="0"/>
+                                <GradientStop Color="#FFA78BFA" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <TextBlock Text="60" FontSize="20" FontWeight="ExtraBold" Foreground="White" HorizontalAlignment="Center"/>
+                            <TextBlock Text="FPS" FontSize="9.5" FontWeight="Bold" Foreground="#FFE0F2FE" HorizontalAlignment="Center" Margin="0,-3,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="Help the project with your AI model" FontSize="16" FontWeight="ExtraBold" Foreground="White"/>
+                        <TextBlock FontSize="12.5" Foreground="#FFCBD5F5" TextWrapping="Wrap" Margin="0,4,0,0" LineHeight="18">
+                            AstroHybrid is open source. If you use an AI coding model (or know C++ and Vulkan), point it at
+                            the project, find a performance gain, measure it, and send a pull request on GitHub.
+                            Every proven improvement brings Astro Bot closer to 60 FPS on every PC.
+                        </TextBlock>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="16,0,0,0">
+                        <Button Content="Send a pull request"
+                                Command="{Binding DataContext.OpenContributeCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                Style="{StaticResource PrimaryButtonStyle}" MinWidth="170" Height="38"
+                                ToolTip="Opens github.com/imnotsharingmyname/pcportastrobot"/>
+                        <Button Content="Fund me on Ko-fi"
+                                Command="{Binding DataContext.OpenSupportCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                Style="{StaticResource SecondaryButtonStyle}" MinWidth="170" Height="34" Margin="0,8,0,0"
+                                ToolTip="Opens ko-fi.com/justhappyguy"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
             <!-- Cinematic Space Hero Banner -->
             <Border Style="{StaticResource HeroCardStyle}" Margin="0,0,0,14">
                 <Grid>
