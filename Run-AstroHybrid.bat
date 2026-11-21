@@ -26,6 +26,11 @@ rem RTX 50 GPUs, where it costs the command processor ~1.8 ms per frame in Sky G
 rem It only records diagnostics when the game hangs. ASTROHYBRID_HANG_WATCHDOG=1 (or KYTY_HANG_WATCHDOG
 rem set by you) brings it back; set it when reporting a freeze.
 if not defined KYTY_HANG_WATCHDOG if not "%ASTROHYBRID_HANG_WATCHDOG%"=="1" set KYTY_HANG_WATCHDOG=0
+rem Dispatch overlap off (error 321, #154, #65): it let two consecutive compute dispatches run unordered,
+rem which is safe on the PS5's GPU (it starts every workgroup of the first dispatch before the second) but
+rem not on a PC GPU, where a later dispatch waiting on an earlier one can take the whole GPU and stall it
+rem until Windows resets the device. A/B 2026-11-21, Sky Garden: same average FPS, no 300 ms spikes.
+if not defined KYTY_DISPATCH_OVERLAP set KYTY_DISPATCH_OVERLAP=0
 rem Persistent shader and pipeline cache behaviour (verified 2026-11-08; see OVERNIGHT.md): without the title ID the
 rem hybrid never opened Kyty's caches and compiled shaders during play (100-117 ms hitches); with it, no
 rem late compiles and no frame over 80 ms. ASTROHYBRID_SHADER_CACHE=0 turns it off.

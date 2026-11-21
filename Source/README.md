@@ -7,7 +7,7 @@ source tree exactly (same Git tree hash).
 
 | File in the download | Built from |
 |---|---|
-| `Build\RunHybrid\kyty_gpu.dll` | KytyPS5 (Jetsku), tag `u59-windows-20261024-int21` (commit `744705ee1df4b0acb1af382ff5c32ca4a20aa5f7`) + `Source/kyty-hybrid/*.patch` (52 patches) |
+| `Build\RunHybrid\kyty_gpu.dll` | KytyPS5 (Jetsku), tag `u59-windows-20261024-int21` (commit `744705ee1df4b0acb1af382ff5c32ca4a20aa5f7`) + `Source/kyty-hybrid/*.patch` (53 patches) |
 | `Build\RunHybrid\libs\*.prx`, `astrohybrid_host.dll`, `tools\relinker.exe` | AnyPS5, upstream `main` commit `319621ba2e578bd053b0baba2877fe70520e0737` + `Source/anyps5/*.patch` (32 patches) |
 | `AstroHybrid.exe` | `AstroHybrid.App/` in this repository |
 | `nvngx_dlss.dll`, `nvngx_dlssg.dll`, `sl.*.dll`, `NvLowLatencyVk.dll` | NVIDIA runtime files, unmodified (DLSS SDK / Streamline 2.14.16), under the licences in `licenses/` |
@@ -29,7 +29,7 @@ cd kyty
 git checkout u59-windows-20261024-int21
 git submodule update --init --recursive
 git am --keep-cr <this repo>/Source/kyty-hybrid/*.patch
-git rev-parse HEAD^{tree}     # b6e83786f19e2ce97e384a4560c9b34918804b08
+git rev-parse HEAD^{tree}     # 198e73f540fd923c58d430c34c8d05b674684f4c
 ```
 
 Build (Windows, Visual Studio 2022 Build Tools x64 environment, LLVM 22.1.3 clang-cl, Ninja, Vulkan SDK):
