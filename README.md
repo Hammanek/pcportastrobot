@@ -78,6 +78,17 @@ Command line: `AstroHybrid.exe --setup "<dump folder>"` runs setup headless; `--
 - **NVIDIA DLSS Super Resolution & Reflex:** Any NVIDIA RTX GPU.
 - **NVIDIA DLSS Frame Generation:** RTX 40-series or newer (3x / 4x Multi Frame Generation requires RTX 50-series).
 - **AMD FSR Upscaling & Frame Generation:** Supported across Vulkan 1.3 GPUs (AMD, NVIDIA, Intel).
+- **Intel XeSS Super Resolution** (Graphics page → Upscaling → Intel XeSS, `ASTROHYBRID_XESS=1`; Kyty patch
+  0064): replaces the game's temporal upscale pass, on the XMX engines of Intel Arc (cards, and the Arc
+  graphics of Lunar Lake / Panther Lake such as Arc 140V and Arc B390) and through DP4a on most other GPUs.
+  Needs `libxess.dll` (XeSS SDK 2.0 or newer, [github.com/intel/xess](https://github.com/intel/xess)) next to
+  the game or in the install folder; tested with 2.0.2 on an Arc B390. XeSS frame generation and Xe Low
+  Latency are D3D12-only in the SDK, so they are not available here; best settings pick XeSS on Intel Arc
+  and Iris Xe.
+- **GPU statistics in the overlay on Windows** (Kyty patch 0063): utilization (busiest engine, the game's own
+  share), dedicated / shared memory, clock, power and temperature of the GPU the renderer uses, on every
+  vendor (Intel Graphics Control Library on Intel, D3DKMT on NVIDIA / AMD, SoC temperature from ACPI on
+  integrated GPUs). Before, Windows showed "GPU n/a".
 - Frame Generation is active while the game window is focused. Do not combine it with NVIDIA Smooth Motion.
 
 ## Status

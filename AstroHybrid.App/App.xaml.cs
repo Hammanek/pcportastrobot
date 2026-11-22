@@ -177,7 +177,7 @@ namespace AstroHybrid.App
                 var hardware = new HardwareDetector().DetectHardware();
                 hardware.SelectGpu(_settings.Gpu);
                 _settings.Sanitize(hardware.SupportsDlss, hardware.SupportsFrameGeneration, hardware.SupportsReflex,
-                                   hardware.MaxFrameGenMultiplier);
+                                   hardware.MaxFrameGenMultiplier, supportsXess: hardware.SupportsXess);
                 int exitCode = await new LauncherService(GetRootDirectory()).LaunchGameAsync(_settings, hardware);
                 Shutdown(exitCode);
             }

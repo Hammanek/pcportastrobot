@@ -50,7 +50,7 @@
                     <StackPanel Margin="20,0,0,20">
                         <TextBlock Style="{StaticResource BodyTextStyle}">• A PS5 Astro Bot game dump (folder containing eboot.bin)</TextBlock>
                         <TextBlock Style="{StaticResource BodyTextStyle}">• Approximately 2-3 GB of free disk space</TextBlock>
-                        <TextBlock Style="{StaticResource BodyTextStyle}">• NVIDIA RTX GPU recommended for DLSS/Frame Generation</TextBlock>
+                        <TextBlock Style="{StaticResource BodyTextStyle}">• NVIDIA RTX GPU recommended for DLSS/Frame Generation; Intel XeSS and AMD FSR work on most other GPUs</TextBlock>
                     </StackPanel>
 
                     <TextBlock Style="{StaticResource MutedTextStyle}" TextWrapping="Wrap">
