@@ -58,6 +58,11 @@ foreach ($f in 'nvngx_dlss.license.txt', 'streamline.license.txt', 'reflex.licen
     Copy-Item (Join-Path $src $f) $run
     Copy-Item (Join-Path $src $f) (Join-Path $stage 'licenses')
 }
+$pl = Join-Path $src 'PipelineLists'
+if (Test-Path $pl) {
+    New-Item -ItemType Directory -Force (Join-Path $run 'PipelineLists') | Out-Null
+    Copy-Item (Join-Path $pl '*.kyplst') (Join-Path $run 'PipelineLists') -ErrorAction SilentlyContinue
+}
 
 # System fonts: the game lays out its menu and prompt text in the console's system fonts. The Noto
 # substitutes AnyPS5 accepts (SIL Open Font License, Tools\release\get_fonts.ps1 downloads them) go in

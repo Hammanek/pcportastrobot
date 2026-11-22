@@ -5,7 +5,7 @@
   "repo": "imnotsharingmyname/pcportastrobot",
   "game": {
     "kind": "folder",
-    "label": "Your decrypted PS5 dump folder of Astro Bot, with eboot.bin, sce_sys and data inside (PPSA21567, game version 01.019.000; version 01.007.000 crashes when levels load).",
+    "label": "Your decrypted PS5 dump folder of Astro Bot, with eboot.bin, sce_sys and data (or app0.zar) inside (PPSA21567, v01.019.000 or v01.007.000).",
     "check": { "file": "eboot.bin" }
   },
   "prepare": {
@@ -151,6 +151,17 @@
         { "label": "165 FPS", "set": { "fgtarget": "6" } }
       ],
       "defaults": { "fgtarget": "2" }
+    },
+    {
+      "id": "fsr-framegen",
+      "label": "AMD FSR Frame Generation",
+      "help": "2x frame generation on any graphics card through AMD FSR SDK 2.4 (off while NVIDIA Frame Generation is on).",
+      "group": "Upscaling and frame generation",
+      "choices": [
+        { "label": "Off", "set": { "fsrfg": "false" } },
+        { "label": "On (2x)", "set": { "fsrfg": "true" } }
+      ],
+      "defaults": { "fsrfg": "false" }
     },
     {
       "id": "reflex",

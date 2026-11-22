@@ -4,8 +4,11 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 using AstroHybrid.App.Models;
+using AstroHybrid.App.Views;
 
 namespace AstroHybrid.App.Services
 {
@@ -51,6 +54,22 @@ namespace AstroHybrid.App.Services
 
             // Build environment variables from settings
             var envVars = BuildEnvironmentVariables(settings, hardware);
+            if (File.Exists(ShaderPrep.ListPath(runHybridPath)))
+            {
+                envVars["KYTY_PIPELINE_LIST"] = "1";
+                envVars["KYTY_PIPELINE_LIST_CROSS"] = "1";
+            }
+
+            if (ShaderPrep.Needed(runHybridPath))
+            {
+                bool proceed = true;
+                var app = Application.Current;
+                if (app?.Dispatcher != null)
+                {
+                    proceed = app.Dispatcher.Invoke(() => ShaderPrepWindow.PrepareBeforePlay(this, envVars));
+                }
+                if (!proceed) return 0;
+            }
 
             var psi = new ProcessStartInfo
             {
@@ -98,6 +117,62 @@ namespace AstroHybrid.App.Services
             process.BeginErrorReadLine();
 
             return await tcs.Task;
+        }
+
+        public async Task<ShaderPrep.Result> PrepareShadersAsync(Dictionary<string, string> variables, IProgress<string>? status, CancellationToken ct)
+        {
+            var runHybridPath = Path.Combine(_rootDirectory, "Build", "RunHybrid");
+            var exePath = Path.Combine(runHybridPath, "AstroBot.exe");
+            if (!File.Exists(exePath) || !File.Exists(ShaderPrep.ListPath(runHybridPath)))
+                return ShaderPrep.Result.NoList;
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = exePath,
+                WorkingDirectory = runHybridPath,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            foreach (var kvp in variables)
+            {
+                psi.EnvironmentVariables[kvp.Key] = kvp.Value;
+            }
+            psi.EnvironmentVariables["KYTY_PIPELINE_LIST"] = "1";
+            psi.EnvironmentVariables["KYTY_PIPELINE_LIST_CROSS"] = "1";
+            psi.EnvironmentVariables["KYTY_PIPELINE_LIST_PREPARE"] = "1";
+            psi.EnvironmentVariables["ASTROHYBRID_CACHE_TITLE_ID"] = "PPSA21567";
+
+            using var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
+            var sawDone = false;
+            var sawNoList = false;
+            process.OutputDataReceived += (s, e) =>
+            {
+                if (string.IsNullOrEmpty(e.Data)) return;
+                var step = ShaderPrep.Step(e.Data);
+                if (step != null) status?.Report(step);
+                if (ShaderPrep.IsDone(e.Data)) sawDone = true;
+                if (ShaderPrep.IsNoList(e.Data)) sawNoList = true;
+            };
+            process.ErrorDataReceived += (s, e) => { };
+
+            if (!process.Start()) return ShaderPrep.Result.Failed;
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+
+            using (ct.Register(() => { try { if (!process.HasExited) process.Kill(); } catch { } }))
+            {
+                await Task.Run(() => process.WaitForExit());
+            }
+            if (ct.IsCancellationRequested) return ShaderPrep.Result.Cancelled;
+            if (sawNoList) return ShaderPrep.Result.NoList;
+            if (process.ExitCode == 0 || sawDone)
+            {
+                ShaderPrep.MarkDone(runHybridPath);
+                return ShaderPrep.Result.Done;
+            }
+            return ShaderPrep.Result.Failed;
         }
 
         public async Task<int> LaunchGameWithDlssAsync(AppSettings settings, HardwareInfo? hardware = null)

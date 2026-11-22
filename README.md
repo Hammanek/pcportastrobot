@@ -73,11 +73,13 @@ See [the ZAR layout, build and troubleshooting guide](Docs/ZAR.md). Full game ve
 
 ### Screenshots
 
-| Home | Graphics |
+| In-game (Sky Garden + FPS overlay) | In-game (Visuals) |
 |---|---|
-| ![Home page](docs/screenshots/app-home.png) | ![Graphics page](docs/screenshots/app-graphics.png) |
+| ![Sky Garden FPS](Reddit%20post/1-sky-garden-fps-counter.png) | ![Sky Garden Confetti](Reddit%20post/2-sky-garden-confetti.png) |
+| **Home** | **Graphics** |
+| ![Home page](Docs/screenshots/app-home.png) | ![Graphics page](Docs/screenshots/app-graphics.png) |
 | **Controller** | **Advanced** |
-| ![Controller page](docs/screenshots/app-controller.png) | ![Advanced page](docs/screenshots/app-advanced.png) |
+| ![Controller page](Docs/screenshots/app-controller.png) | ![Advanced page](Docs/screenshots/app-advanced.png) |
 
 ## What it is
 
@@ -121,16 +123,18 @@ Caveat: numbers move with background load. With a browser playing audio the same
 
 What changed in each version is in the [release notes](https://github.com/imnotsharingmyname/pcportastrobot/releases).
 
-- **DLSS Super Resolution** (`ASTROHYBRID_DLSS=1`). Needed a fix in AnyPS5's libc: CUDA (which DLSS uses) needs
+- **DLSS Super Resolution** (`ASTROHYBRID_DLSS=1`) and **AMD FSR 3.1 / 4** upscaling on any GPU (`ASTROHYBRID_FSR=1`). Needed a fix in AnyPS5's libc: CUDA (which DLSS uses) needs
   a 48 GiB address window below 1 TiB, which the PS5 memory map had taken (`ASTROHYBRID_CUDA_HOLE=1`).
 - **DLSS Frame Generation and Multi Frame Generation** through Streamline (`ASTROHYBRID_DLSSG=1`,
   2x / 3x / 4x), with an **adaptive mode** that picks the multiplier in game every half second to stay at or
-  above a target on screen (`ASTROHYBRID_DLSSG_TARGET`). The game itself is never capped below 30 FPS.
+  above a target on screen (`ASTROHYBRID_DLSSG_TARGET`), plus **AMD FSR Frame Generation (2x)** (`ASTROHYBRID_FSRFG=1`) for any Vulkan GPU. The game itself is never capped below 30 FPS.
+- **Pre-launch shader preparation**: compiles known shaders/pipelines before gameplay when a pipeline list is present, eliminating first-run shader compilation stutters.
+- **ZArchive (`app0.zar`) & v01.007.000 support**: setup accepts `app0.zar` dumps without needing an extracted `data` folder, and includes faster non-RT lighting + Havok crash fixes for `01.007.000` alongside `01.019.000`.
+- **Desktop launcher & RecompLauncher**: setup places an `AstroHybrid` shortcut on your Desktop so you always have quick access to the launcher before playing, and ships `recomplauncher.json` for one-click setup and play in RecompLauncher.
 - **NVIDIA Reflex** for Vulkan through `VK_NV_low_latency2` (`ASTROHYBRID_LOW_LATENCY=1`).
 - **Cloth and bubble stability** (`KYTY_BUFFER_RANGE_FIXES=1`, `ASTROHYBRID_COMMIT_EPOCH_FASTPATH=0`, plus 60 Hz cloth physics step cap during real-time speed below 60 FPS; issues #30, #35).
-- **Performance overlay** shows frames on screen and the game's own rate with Frame Generation.
-- **Controllers**: DualSense (rumble, light bar, adaptive triggers, motion), Xbox, Switch Pro and compatible
-  pads, generic pads. The pad you press becomes player 1 (before, a second pad got no input), vibration
+- **Performance overlay** shows frames on screen and the game's own rate with Frame Generation, plus game window & taskbar icon from `app0/sce_sys/icon0.png`.
+- **Controllers**: DualSense (rumble, light bar, adaptive triggers, motion), Xbox, Switch Pro (with automatic gyro zero-rate offset calibration at rest) and compatible pads, generic pads. The pad you press becomes player 1 (before, a second pad got no input), vibration
   strength for non-DualSense pads, a stronger-rumble option for third-party Switch-style pads.
 - **Ultrawide**: 21:9 (2560x1080, 3440x1440) and 32:9 (5120x1440), each with a matching render variant (#58).
 - **The AstroHybrid app** (`AstroHybrid.exe`, source in `AstroHybrid.App`):

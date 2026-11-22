@@ -227,6 +227,15 @@ namespace AstroHybrid.App.Services
 
             var nonRt = (byte[])baseBytes.Clone();
             features.FasterLighting = ApplyAll(nonRt, FasterLightingPatches, log);
+            if (!features.FasterLighting)
+            {
+                var patched0107 = Patch0107.Apply(baseBytes, log);
+                if (patched0107 != null)
+                {
+                    nonRt = patched0107;
+                    features.FasterLighting = true;
+                }
+            }
             if (features.FasterLighting)
             {
                 if (ShouldWrite("AstroBot-NonRT"))
