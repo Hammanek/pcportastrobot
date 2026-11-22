@@ -54,11 +54,6 @@ namespace AstroHybrid.App.Services
 
             // Build environment variables from settings
             var envVars = BuildEnvironmentVariables(settings, hardware);
-            if (File.Exists(ShaderPrep.ListPath(runHybridPath)))
-            {
-                envVars["KYTY_PIPELINE_LIST"] = "1";
-                envVars["KYTY_PIPELINE_LIST_CROSS"] = "1";
-            }
 
             if (ShaderPrep.Needed(runHybridPath))
             {
