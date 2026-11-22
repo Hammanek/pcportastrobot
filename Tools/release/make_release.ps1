@@ -52,7 +52,7 @@ Get-ChildItem (Join-Path $src 'libs') -File | ForEach-Object {
 $runtime = 'kyty_gpu.dll', 'astrohybrid_host.dll', 'u59-preset.cmd', 'u59-preset.json',
            'nvngx_dlss.dll', 'nvngx_dlssg.dll', 'NvLowLatencyVk.dll',
            'sl.interposer.dll', 'sl.common.dll', 'sl.dlss_g.dll', 'sl.reflex.dll', 'sl.pcl.dll',
-           'amd_fidelityfx_loader_vk.dll', 'amd_fidelityfx_upscaler_vk.dll'
+           'amd_fidelityfx_loader_vk.dll', 'amd_fidelityfx_upscaler_vk.dll', 'amd_fidelityfx_framegeneration_vk.dll'
 foreach ($f in $runtime) { Copy-Item (Join-Path $src $f) $run }
 foreach ($f in 'nvngx_dlss.license.txt', 'streamline.license.txt', 'reflex.license.txt', 'amd_fsr.license.txt') {
     Copy-Item (Join-Path $src $f) $run

@@ -332,6 +332,16 @@ namespace AstroHybrid.App.Services
                     env["ASTROHYBRID_DLSS_QUALITY"] = dlssQuality[settings.DlssQuality];
             }
 
+            // AMD FSR frame generation (2x, any graphics card; the same AMD FSR SDK 2.4 loader plus
+            // amd_fidelityfx_framegeneration_vk.dll next to the game). It works with any upscaler and is the
+            // other frame generator: off while NVIDIA frame generation is on. The game's own FPS limit stays
+            // as set; the screen shows twice that. Always written, so a value inherited from the environment
+            // never overrides the launcher's choice.
+            bool fsrFrameGen = settings.FsrFrameGen && settings.FrameGenMode == 0 && FsrFrameGenRuntimeAvailable(_rootDirectory);
+            env["ASTROHYBRID_FSRFG"] = fsrFrameGen ? "1" : "0";
+            if (fsrFrameGen)
+                env["ASTROHYBRID_FSR_PATH"] = Path.Combine(_rootDirectory, "Build", "RunHybrid");
+
             // Frame generation plan (AstroBotLauncher.FrameGenPlan): the game is never capped below 30.
             // Auto with a target starts at 2x with the game capped at half the target and lets the game
             // raise the multiplier; fixed modes cap the game at target / multiplier; no lock = uncapped.
@@ -412,6 +422,15 @@ namespace AstroHybrid.App.Services
             env["APS5_SAVEDATA_TRANSFER_FALLBACK"] = "1";
 
             return env;
+        }
+
+        // AMD's FSR frame generation runtime next to the game (the loader the FSR upscaler uses as well, and
+        // the frame generation DLL): the FSR frame generation option is offered only with both.
+        public static bool FsrFrameGenRuntimeAvailable(string rootDirectory)
+        {
+            var folder = Path.Combine(rootDirectory, "Build", "RunHybrid");
+            return File.Exists(Path.Combine(folder, "amd_fidelityfx_loader_vk.dll")) &&
+                   File.Exists(Path.Combine(folder, "amd_fidelityfx_framegeneration_vk.dll"));
         }
 
         // The renderer selects a card by name (ANYPS5_GPU, a case-insensitive substring of the Vulkan

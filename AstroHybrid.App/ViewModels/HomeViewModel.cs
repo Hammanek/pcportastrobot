@@ -72,6 +72,7 @@ namespace AstroHybrid.App.ViewModels
             {
                 var fgLabels = new[] { "Frame Gen Off", "Frame Gen Auto", "Frame Gen 2x", "Frame Gen 3x", "Frame Gen 4x" };
                 int idx = _mainViewModel.Settings.FrameGenMode;
+                if (idx == 0 && _mainViewModel.Settings.FsrFrameGen) return "FSR Frame Gen 2x";
                 return idx >= 0 && idx < fgLabels.Length ? fgLabels[idx] : "Frame Gen Off";
             }
         }
@@ -130,7 +131,12 @@ namespace AstroHybrid.App.ViewModels
                     parts.Add($"FG {fgLabels[_mainViewModel.Settings.FrameGenMode]}");
             }
 
-            if (_mainViewModel.Settings.LowLatency)
+            bool fsrFrameGen = _mainViewModel.Settings.FsrFrameGen && _mainViewModel.Settings.FrameGenMode == 0;
+            if (fsrFrameGen)
+                parts.Add("FSR FG 2x");
+
+            // Reflex is off while AMD FSR frame generation presents the frames.
+            if (_mainViewModel.Settings.LowLatency && !fsrFrameGen)
                 parts.Add("Reflex");
 
             return string.Join(" | ", parts);

@@ -112,6 +112,9 @@ namespace AstroHybrid.App.ViewModels
                 OnPropertyChanged(nameof(SupportsDlss));
                 OnPropertyChanged(nameof(SupportsReflex));
                 OnPropertyChanged(nameof(IsFrameGenAvailable));
+                OnPropertyChanged(nameof(FsrFrameGen));
+                OnPropertyChanged(nameof(IsFsrFrameGenAvailable));
+                OnPropertyChanged(nameof(FsrNote));
                 _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.HardwareInfo));
                 _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.Settings));
             }
@@ -207,7 +210,7 @@ namespace AstroHybrid.App.ViewModels
 
         // VSync sets the swapchain's present mode (FIFO), which frame generation presents through as well (#15).
         public bool IsVSyncAvailable => true;
-        public string VSyncNote => _mainViewModel.Settings.FrameGenMode == 0
+        public string VSyncNote => _mainViewModel.Settings.FrameGenMode == 0 && !FsrFrameGen
             ? "Locks presentation to your screen's refresh (no tearing)."
             : "Locks presentation to your screen's refresh (no tearing), generated frames included. Keep the frame generation target at or below your screen's refresh rate; with a G-Sync / FreeSync screen you can also leave VSync off.";
 
@@ -229,7 +232,10 @@ namespace AstroHybrid.App.ViewModels
         // With frame generation on, the target sets the game's own limit (as in the classic launcher).
         public string FpsLimitLabel => IsFpsLimitEnabled ? "FPS limit" : "Target on screen";
         public bool IsFpsLimitEnabled => _mainViewModel.Settings.FrameGenMode == 0;
-        public string FpsLimitNote => IsFpsLimitEnabled
+        public string FpsLimitNote => !IsFpsLimitEnabled || !FsrFrameGen
+            ? FpsLimitNoteWithoutFsr
+            : "AMD FSR frame generation is on: this is the game's own rate, and the screen shows twice as many frames (30 -> 60, 45 -> 90, 60 -> 120).";
+        private string FpsLimitNoteWithoutFsr => IsFpsLimitEnabled
             ? "The game may run below the selected limit in demanding scenes."
             : "Frame generation is on: the game's own limit comes from the frame generation target below (60 on screen = game at 30 x2). Turn frame generation off to use this limit.";
 
@@ -245,6 +251,7 @@ namespace AstroHybrid.App.ViewModels
                 {
                     _mainViewModel.Settings.Fps = value;
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(FsrNote));
                     _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.Settings));
                 }
             }
@@ -305,6 +312,9 @@ namespace AstroHybrid.App.ViewModels
                 OnPropertyChanged(nameof(IsFrameGenAvailable));
                 OnPropertyChanged(nameof(FrameGenIndex));
                 OnPropertyChanged(nameof(FrameGenNote));
+                OnPropertyChanged(nameof(FsrFrameGen));
+                OnPropertyChanged(nameof(IsFsrFrameGenAvailable));
+                OnPropertyChanged(nameof(FsrNote));
                 OnPropertyChanged(nameof(ActiveSummary));
                 _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.Settings));
             }
@@ -361,7 +371,11 @@ namespace AstroHybrid.App.ViewModels
                 st.FrameGenAuto = value == 0;
                 if (value != 0) st.FrameGenMode = modes[value];
                 _mainViewModel.ResolveAutoGraphics();
+                if (st.FrameGenMode != 0) st.FsrFrameGen = false;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(FsrFrameGen));
+                OnPropertyChanged(nameof(IsFsrFrameGenAvailable));
+                OnPropertyChanged(nameof(FsrNote));
                 OnPropertyChanged(nameof(IsFrameGenTargetEnabled));
                 OnPropertyChanged(nameof(FrameGenNote));
                 OnPropertyChanged(nameof(IsFpsLimitEnabled));
@@ -370,6 +384,52 @@ namespace AstroHybrid.App.ViewModels
                 OnPropertyChanged(nameof(FpsLimitNote));
                 OnPropertyChanged(nameof(ActiveSummary));
                 _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.Settings));
+            }
+        }
+
+        // AMD FSR frame generation (AMD FSR SDK 2.4 runtime: amd_fidelityfx_loader_vk.dll and
+        // amd_fidelityfx_framegeneration_vk.dll in Build\RunHybrid). Any graphics card, any upscaler;
+        // the other frame generator, so not together with NVIDIA frame generation.
+        public bool IsFsrFrameGenInstalled => Services.LauncherService.FsrFrameGenRuntimeAvailable(_mainViewModel.RootDirectory);
+
+        public bool IsFsrFrameGenAvailable => IsFsrFrameGenInstalled && _mainViewModel.Settings.FrameGenMode == 0;
+
+        public bool FsrFrameGen
+        {
+            get => _mainViewModel.Settings.FsrFrameGen && _mainViewModel.Settings.FrameGenMode == 0;
+            set
+            {
+                bool wanted = value && IsFsrFrameGenAvailable;
+                if (_mainViewModel.Settings.FsrFrameGen != wanted)
+                {
+                    _mainViewModel.Settings.FsrFrameGen = wanted;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(FsrNote));
+                    OnPropertyChanged(nameof(FpsLimitNote));
+                    OnPropertyChanged(nameof(VSyncNote));
+                    OnPropertyChanged(nameof(ActiveSummary));
+                    _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.Settings));
+                }
+                else if (value != wanted)
+                {
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string FsrNote
+        {
+            get
+            {
+                if (!IsFsrFrameGenInstalled)
+                    return "Not installed: AMD FSR frame generation needs amd_fidelityfx_loader_vk.dll and amd_fidelityfx_framegeneration_vk.dll (AMD FSR SDK 2.4) in Build\\RunHybrid.";
+                if (_mainViewModel.Settings.FrameGenMode != 0)
+                    return "NVIDIA frame generation is on: turn it off to use AMD FSR frame generation instead.";
+                var limits = new[] { 30, 35, 45, 50, 55, 60, 0 };
+                int limit = FpsIndex >= 0 && FpsIndex < limits.Length ? limits[FpsIndex] : 30;
+                string shown = limit == 0 ? "twice the game's frame rate on screen" : $"game up to {limit} FPS x2 = {limit * 2} on screen";
+                return (FsrFrameGen ? "On: " + shown + ". " : "One generated frame between every two game frames (" + shown + "). ") +
+                       "Works on any graphics card, with any upscaling choice above. NVIDIA Reflex is off while it runs, it adds some input delay, and the HUD can shimmer in fast motion.";
             }
         }
 
@@ -392,7 +452,8 @@ namespace AstroHybrid.App.ViewModels
 
         public bool ShowFrameGen => _mainViewModel.HardwareInfo?.SupportsFrameGeneration == true;
         public bool ShowFrameGenUnavailable => !ShowFrameGen;
-        public string FrameGenUnavailableNote => "Frame generation needs an NVIDIA RTX 40 or newer card, so it is not offered on this graphics card.";
+        public string FrameGenUnavailableNote => "NVIDIA frame generation needs an RTX 40 or newer card, so it is not offered on this graphics card."
+            + (IsFsrFrameGenInstalled ? " AMD FSR frame generation (below) works on this card." : "");
 
         // What will actually run with the current choices, in plain words.
         public string ActiveSummary
@@ -414,8 +475,10 @@ namespace AstroHybrid.App.ViewModels
                 {
                     var fps = new[] { "30", "35", "45", "50", "55", "60", "unlimited" };
                     parts.Add((st.Fps >= 0 && st.Fps < fps.Length ? fps[st.Fps] : "30") + " FPS limit");
+                    if (FsrFrameGen) parts.Add("AMD FSR frame generation (2x on screen)");
                 }
-                if (st.LowLatency || st.FrameGenMode != 0) parts.Add("Reflex");
+                // Reflex is off while AMD FSR frame generation presents the frames.
+                if ((st.LowLatency || st.FrameGenMode != 0) && !FsrFrameGen) parts.Add("Reflex");
                 return "Active: " + string.Join(", ", parts) + ".";
             }
         }
@@ -522,9 +585,11 @@ namespace AstroHybrid.App.ViewModels
                 else if (_mainViewModel.HardwareInfo.RtxSeries >= 40)
                     return $"{gpu}: DLSS + Frame Gen (2x) + Reflex available";
                 else if (_mainViewModel.HardwareInfo.RtxSeries >= 20)
-                    return $"{gpu}: DLSS + Reflex available (Frame Gen needs RTX 40+)";
+                    return $"{gpu}: DLSS + Reflex available (NVIDIA Frame Gen needs RTX 40+" +
+                           (IsFsrFrameGenInstalled ? "; AMD FSR frame generation works on this card)" : ")");
                 else
-                    return $"{gpu}: AMD FSR upscaling available (DLSS, frame generation and Reflex need an NVIDIA RTX card)";
+                    return $"{gpu}: AMD FSR upscaling" + (IsFsrFrameGenInstalled ? " and frame generation" : "") +
+                           " available (DLSS, NVIDIA frame generation and Reflex need an NVIDIA RTX card)";
             }
         }
     }
