@@ -40,6 +40,11 @@ namespace AstroHybrid.App.Models
         [JsonPropertyName("fgmode")]
         public int FrameGenMode { get; set; } = 0;
 
+        // AMD FSR frame generation (2x, any graphics card; ASTROHYBRID_FSRFG). Off while NVIDIA frame
+        // generation (FrameGenMode) is on; works with any upscaler.
+        [JsonPropertyName("fsrfg")]
+        public bool FsrFrameGen { get; set; } = false;
+
         [JsonPropertyName("lowlatency")]
         public bool LowLatency { get; set; } = false;
 
@@ -204,7 +209,8 @@ namespace AstroHybrid.App.Models
         [JsonIgnore]
         public bool IsSuperUltrawideSize => GetAspectRatio(Size) == 32;
 
-        public void Sanitize(bool supportsDlss = true, bool supportsFrameGeneration = true, bool supportsReflex = true, int maxFrameGenMultiplier = 4)
+        public void Sanitize(bool supportsDlss = true, bool supportsFrameGeneration = true, bool supportsReflex = true, int maxFrameGenMultiplier = 4,
+                             bool supportsFsrFrameGen = true)
         {
             if (Lighting < 0 || Lighting > 1) Lighting = 0;
             if (Fps < 0 || Fps > 6) Fps = 0;
@@ -229,6 +235,8 @@ namespace AstroHybrid.App.Models
             if (!supportsReflex) LowLatency = false;
             // Fixed 3x / 4x need a card that can generate that many frames (RTX 50 multi frame generation).
             if (FrameGenMode >= 3 && FrameGenMode > Math.Max(2, maxFrameGenMultiplier)) FrameGenMode = 2;
+            // AMD FSR frame generation needs its runtime next to the game, and NVIDIA frame generation off.
+            if (!supportsFsrFrameGen || FrameGenMode != 0) FsrFrameGen = false;
         }
     }
 

@@ -7,7 +7,7 @@ source tree exactly (same Git tree hash).
 
 | File in the download | Built from |
 |---|---|
-| `Build\RunHybrid\kyty_gpu.dll` | KytyPS5 (Jetsku), tag `u59-windows-20261024-int21` (commit `744705ee1df4b0acb1af382ff5c32ca4a20aa5f7`) + `Source/kyty-hybrid/*.patch` (54 patches) |
+| `Build\RunHybrid\kyty_gpu.dll` | KytyPS5 (Jetsku), tag `u59-windows-20261024-int21` (commit `744705ee1df4b0acb1af382ff5c32ca4a20aa5f7`) + `Source/kyty-hybrid/*.patch` (55 patches) |
 | `Build\RunHybrid\libs\*.prx`, `astrohybrid_host.dll`, `tools\relinker.exe` | AnyPS5, upstream `main` commit `319621ba2e578bd053b0baba2877fe70520e0737` + `Source/anyps5/*.patch` (32 patches) |
 | `AstroHybrid.exe` | `AstroHybrid.App/` in this repository |
 | `nvngx_dlss.dll`, `nvngx_dlssg.dll`, `sl.*.dll`, `NvLowLatencyVk.dll` | NVIDIA runtime files, unmodified (DLSS SDK / Streamline 2.14.16), under the licences in `licenses/` |
@@ -29,7 +29,7 @@ cd kyty
 git checkout u59-windows-20261024-int21
 git submodule update --init --recursive
 git am --keep-cr <this repo>/Source/kyty-hybrid/*.patch
-git rev-parse HEAD^{tree}     # aeb6569ed5f5e7b354026bdcb539e2beb0023223
+git rev-parse HEAD^{tree}     # 476fec7f6f61b98c4daf98695455714b5e03a855
 ```
 
 Build (Windows, Visual Studio 2022 Build Tools x64 environment, LLVM 22.1.3 clang-cl, Ninja, Vulkan SDK):
@@ -41,7 +41,8 @@ Build (Windows, Visual Studio 2022 Build Tools x64 environment, LLVM 22.1.3 clan
    (https://github.com/NVIDIA-RTX/Streamline). Without them the DLL builds with DLSS and frame
    generation left out. For AMD FSR, pass `-DKYTY_FFX_SDK_DIR=<fsr>/Kits/FidelityFX`, where `<fsr>` is
    AMD's FSR SDK 2.4.0 (https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK, tag `v2.4.0`); the
-   release ships the SDK's signed `amd_fidelityfx_loader_vk.dll` and `amd_fidelityfx_upscaler_vk.dll`.
+   release ships the SDK's signed `amd_fidelityfx_loader_vk.dll`, `amd_fidelityfx_upscaler_vk.dll` (FSR upscaling)
+   and `amd_fidelityfx_framegeneration_vk.dll` (FSR frame generation).
 3. `cmake --build <build> --target kyty_emulator`
 4. `python -I tools/hybrid/build_kyty_gpu.py <build> <out>` links `<out>\kyty_gpu.dll` from the
    emulator's objects and the bridge.

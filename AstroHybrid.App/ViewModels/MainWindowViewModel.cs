@@ -50,6 +50,9 @@ namespace AstroHybrid.App.ViewModels
 
         public static MainWindowViewModel? Current { get; private set; }
 
+        // The game folder (the one with Run-AstroHybrid.bat).
+        public string RootDirectory => _rootDirectory;
+
         public MainWindowViewModel(string rootDirectory)
         {
             Current = this;
@@ -256,10 +259,11 @@ namespace AstroHybrid.App.ViewModels
                 }
 
                 ResolveAutoGraphics();
+                bool fsrFrameGen = LauncherService.FsrFrameGenRuntimeAvailable(_rootDirectory);
                 if (HardwareInfo != null)
-                    Settings.Sanitize(HardwareInfo.SupportsDlss, HardwareInfo.SupportsFrameGeneration, HardwareInfo.SupportsReflex, HardwareInfo.MaxFrameGenMultiplier);
+                    Settings.Sanitize(HardwareInfo.SupportsDlss, HardwareInfo.SupportsFrameGeneration, HardwareInfo.SupportsReflex, HardwareInfo.MaxFrameGenMultiplier, fsrFrameGen);
                 else
-                    Settings.Sanitize();
+                    Settings.Sanitize(supportsFsrFrameGen: fsrFrameGen);
                 _settingsManager.Save(Settings);
 
                 StatusMessage = InstallationState?.IsInstalled == true ? "Ready" : "Setup required";
@@ -403,6 +407,8 @@ namespace AstroHybrid.App.ViewModels
                 if (wasOff && Settings.FrameGenMode != 0) Settings.FrameGenTarget = best.Target;
             }
             if (Settings.Upscale != 1) Settings.FrameGenMode = 0;
+            // AMD FSR frame generation is the other frame generator: off while NVIDIA's is on.
+            if (Settings.FrameGenMode != 0) Settings.FsrFrameGen = false;
         }
 
         // Restore Defaults on the Graphics page: graphics only. Controller, language, game folder and
