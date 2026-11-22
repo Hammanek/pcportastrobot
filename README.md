@@ -63,6 +63,14 @@ The script uses your default Wine prefix; set `WINEPREFIX` to use another one. I
 
 DLSS and Reflex have not been tested under Wine.
 
+### ZArchive (`app0.zar`) dumps
+
+Setup accepts `app0.zar` alongside loose `eboot.bin`, `sce_module` and `sce_sys`; no empty `data` folder is needed.
+Archive entries must be relative to the dump root (`data/...`, **not** `app0/data/...`). The archive is installed
+beside `Build\RunHybrid\app0`. The additional runtime patches provide read-only archive stdio and exact-first
+`.odx` to `.odxb` filename fallback; an older release needs rebuilt runtime libraries, not just Repair.
+See [the ZAR layout, build and troubleshooting guide](Docs/ZAR.md). Full game verification on Windows is still required.
+
 ### Screenshots
 
 | Home | Graphics |
