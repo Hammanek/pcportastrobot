@@ -767,6 +767,176 @@ namespace AstroHybrid.App.Services
             return true;
         }
 
+        private static readonly string Tier0ResolutionRetPattern =
+            "C707????????C706????????C3C707000D0000C70650070000C3C707000F0000C70670080000";
+
+        private static readonly string Tier0ResolutionJmpPattern =
+            "C707????????C706????????EB1AC707000D0000C70650070000EB0CC707000F0000C70670080000";
+
+        // Clang-compiled .rodata lookup tables for dynamic-resolution tiers 0..4:
+        //   widths[5]  = { tier0_w, 2432, 2432, 3328, 3840 }  (tier 0 sits at anchor - 4)
+        //   heights[5] = { tier0_h, 1368, 1368, 1872, 2160 }  (tier 0 sits at anchor - 4)
+        private static readonly string Tier0WidthTableAnchor =
+            "8009000080090000000D0000000F0000";
+
+        private static readonly string Tier0HeightTableAnchor =
+            "58050000580500005007000070080000";
+
+        // Upscale / post-process output target sites (default 2432x1368 when tier < 2).
+        // Site 1: width at +1, height at +38; Site 2: width at +6, height at +16.
+        private static readonly string UpscaleOutputSite1Pattern =
+            "BB????????B970080000488D35????????488DBDC0FEFFFFC5F857C0664489A0B216050041BC????????80B850010000";
+
+        private static readonly string UpscaleOutputSite2Pattern =
+            "B9000F0000BA????????BE70080000BF????????4C8DB3301600000F44D10F44FE";
+
+        // Patches Astro Bot's dynamic-resolution tier-0 width/height across both the 3 switch functions
+        // and the 3 .rodata lookup table pairs anchored on tiers 1..4, plus the 2 upscale output target
+        // sites (default 2432x1368). Idempotent and reversible back to 1920x1080 -> 2432x1368.
+        public bool ApplyRenderResolutionTier0(string exeName, int width, int height, int outWidth = 2432, int outHeight = 1368, Action<string>? log = null)
+        {
+            var logFn = log ?? (_ => { });
+            if (width < 640 || width > 2432 || height < 360 || height > 1368 || (width % 64) != 0 || (height % 8) != 0 ||
+                outWidth < 1280 || outWidth > 2432 || outHeight < 720 || outHeight > 1368 || (outWidth % 64) != 0 || (outHeight % 8) != 0)
+            {
+                logFn($"FSR resolution tier-0: rejected invalid size {width}x{height} -> {outWidth}x{outHeight}");
+                return false;
+            }
+
+            var path = Path.Combine(_runHybrid, exeName);
+            if (!File.Exists(path))
+            {
+                logFn($"FSR resolution tier-0: {exeName} not found");
+                return false;
+            }
+
+            var data = File.ReadAllBytes(path);
+            var retOffsets = FindAllMatches(data, Tier0ResolutionRetPattern);
+            var jmpOffsets = FindAllMatches(data, Tier0ResolutionJmpPattern);
+            var widthTableAnchors = FindAllMatches(data, Tier0WidthTableAnchor);
+            var heightTableAnchors = FindAllMatches(data, Tier0HeightTableAnchor);
+            var outSite1 = FindAllMatches(data, UpscaleOutputSite1Pattern);
+            var outSite2 = FindAllMatches(data, UpscaleOutputSite2Pattern);
+
+            if (retOffsets.Count != 2 || jmpOffsets.Count != 1 ||
+                widthTableAnchors.Count != 3 || heightTableAnchors.Count != 3 ||
+                outSite1.Count != 1 || outSite2.Count != 1)
+            {
+                logFn($"FSR resolution tier-0: expected 2+1 switch, 3+3 table & 1+1 output sites in {exeName}, " +
+                      $"found {retOffsets.Count}+{jmpOffsets.Count}, {widthTableAnchors.Count}+{heightTableAnchors.Count}, {outSite1.Count}+{outSite2.Count}, skipped");
+                return false;
+            }
+
+            var widthSlots = new List<int>(6);
+            var heightSlots = new List<int>(6);
+            foreach (int off in retOffsets)
+            {
+                widthSlots.Add(off + 2);
+                heightSlots.Add(off + 8);
+            }
+            foreach (int off in jmpOffsets)
+            {
+                widthSlots.Add(off + 2);
+                heightSlots.Add(off + 8);
+            }
+            foreach (int anchor in widthTableAnchors)
+            {
+                if (anchor < 4) return false;
+                widthSlots.Add(anchor - 4);
+            }
+            foreach (int anchor in heightTableAnchors)
+            {
+                if (anchor < 4) return false;
+                heightSlots.Add(anchor - 4);
+            }
+
+            var outWidthSlots = new[] { outSite1[0] + 1, outSite2[0] + 6 };
+            var outHeightSlots = new[] { outSite1[0] + 38, outSite2[0] + 16 };
+
+            bool changed = false;
+            for (int i = 0; i < widthSlots.Count; i++)
+            {
+                if (BitConverter.ToInt32(data, widthSlots[i]) != width ||
+                    BitConverter.ToInt32(data, heightSlots[i]) != height)
+                {
+                    changed = true;
+                    break;
+                }
+            }
+            if (!changed)
+            {
+                for (int i = 0; i < outWidthSlots.Length; i++)
+                {
+                    if (BitConverter.ToInt32(data, outWidthSlots[i]) != outWidth ||
+                        BitConverter.ToInt32(data, outHeightSlots[i]) != outHeight)
+                    {
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!changed)
+            {
+                logFn($"FSR resolution tier-0: {exeName} already set to {width}x{height} -> {outWidth}x{outHeight}");
+                return true;
+            }
+
+            var wBytes = BitConverter.GetBytes(width);
+            var hBytes = BitConverter.GetBytes(height);
+            var owBytes = BitConverter.GetBytes(outWidth);
+            var ohBytes = BitConverter.GetBytes(outHeight);
+            using (var fs = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+            {
+                foreach (int slot in widthSlots)
+                {
+                    fs.Seek(slot, SeekOrigin.Begin);
+                    fs.Write(wBytes, 0, 4);
+                }
+                foreach (int slot in heightSlots)
+                {
+                    fs.Seek(slot, SeekOrigin.Begin);
+                    fs.Write(hBytes, 0, 4);
+                }
+                foreach (int slot in outWidthSlots)
+                {
+                    fs.Seek(slot, SeekOrigin.Begin);
+                    fs.Write(owBytes, 0, 4);
+                }
+                foreach (int slot in outHeightSlots)
+                {
+                    fs.Seek(slot, SeekOrigin.Begin);
+                    fs.Write(ohBytes, 0, 4);
+                }
+                fs.Flush(true);
+            }
+
+            logFn($"FSR resolution tier-0: patched {exeName} to {width}x{height} -> {outWidth}x{outHeight} (3 switch + 3 table + 2 output sites)");
+            return true;
+        }
+
+        private static List<int> FindAllMatches(byte[] data, string hexPattern)
+        {
+            var (pattern, anyByte) = HexPattern(hexPattern);
+            var results = new List<int>();
+            int limit = data.Length - pattern.Length;
+            for (int i = 0; i <= limit; i++)
+            {
+                if (!anyByte[0] && data[i] != pattern[0]) continue;
+                bool match = true;
+                for (int j = 1; j < pattern.Length; j++)
+                {
+                    if (!anyByte[j] && data[i + j] != pattern[j]) { match = false; break; }
+                }
+                if (match)
+                {
+                    results.Add(i);
+                    i += pattern.Length - 1;
+                }
+            }
+            return results;
+        }
+
         private void WriteVariant(byte[] data, string name)
         {
             File.WriteAllBytes(Path.Combine(_runHybrid, name + ".exe"), data);

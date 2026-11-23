@@ -59,6 +59,19 @@ namespace AstroHybrid.App.Models
         [JsonPropertyName("dlssQuality")]
         public int DlssQuality { get; set; } = 0;
 
+        // AMD FSR quality preset: controls Astro Bot's dynamic-resolution tier-0 internal render size
+        // before FSR upscaling (0 = PS5 default 1920x1080 .. 5 = Ultra Performance 1024x576).
+        [JsonPropertyName("fsrQuality")]
+        public int FsrQuality { get; set; } = 0;
+
+        // AMD FSR sharpening (RCAS) in percent (0-100 -> ASTROHYBRID_FSR_SHARPNESS 0.00..1.00).
+        [JsonPropertyName("fsrSharpness")]
+        public int FsrSharpness { get; set; } = 0;
+
+        // AMD FSR runtime version preference (0 = auto, 1 = FSR 4, 2 = FSR 3.1, 3 = FSR 2 -> ASTROHYBRID_FSR_VERSION).
+        [JsonPropertyName("fsrVersion")]
+        public int FsrVersion { get; set; } = 0;
+
         [JsonPropertyName("upscaleAuto")]
         public bool UpscaleAuto { get; set; } = false;
 
@@ -221,6 +234,17 @@ namespace AstroHybrid.App.Models
         [JsonIgnore]
         public bool IsSuperUltrawideSize => GetAspectRatio(Size) == 32;
 
+        // Glitch-free AMD FSR render/output presets (all >= 1920x1080 internal so Astro Bot's
+        // grass/occlusion passes stay intact; 1080p Native avoids the 2432x1368 post-process upscale).
+        public static readonly (string Label, string ShortLabel, int InWidth, int InHeight, int OutWidth, int OutHeight)[] FsrQualityPresets =
+        {
+            ("Default (PS5 — 1920x1080 → 2432x1368)",          "Default 1080p→1368p", 1920, 1080, 2432, 1368),
+            ("1080p Native (1920x1080 → 1920x1080 — faster)",  "1080p Native",        1920, 1080, 1920, 1080),
+            ("Native AA (2432x1368 → 2432x1368 — sharpest)",   "Native AA 1368p",     2432, 1368, 2432, 1368),
+        };
+
+        public static readonly string[] FsrVersionValues = { "auto", "4", "3", "2" };
+
         public void Sanitize(bool supportsDlss = true, bool supportsFrameGeneration = true, bool supportsReflex = true, int maxFrameGenMultiplier = 4,
                              bool supportsFsrFrameGen = true)
         {
@@ -233,6 +257,10 @@ namespace AstroHybrid.App.Models
             if (FrameGenMode < 0 || FrameGenMode > 4) FrameGenMode = 0;
             if (FrameGenTarget < 0 || FrameGenTarget > 6) FrameGenTarget = 2;
             if (DlssQuality < 0 || DlssQuality > 3) DlssQuality = 0;
+            if (FsrQuality < 0 || FsrQuality >= FsrQualityPresets.Length) FsrQuality = 0;
+            if (FsrSharpness < 0) FsrSharpness = 0;
+            else if (FsrSharpness > 100) FsrSharpness = 100;
+            if (FsrVersion < 0 || FsrVersion >= FsrVersionValues.Length) FsrVersion = 0;
             if (Controller < 0 || Controller > 4) Controller = 0;
             if (CpPriority < 0 || CpPriority > 2) CpPriority = 2;
             if (Priority != "normal" && Priority != "abovenormal" && Priority != "high")
