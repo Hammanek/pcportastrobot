@@ -117,8 +117,10 @@ namespace AstroHybrid.App.Services
         public async Task<ShaderPrep.Result> PrepareShadersAsync(Dictionary<string, string> variables, IProgress<string>? status, CancellationToken ct)
         {
             var runHybridPath = Path.Combine(_rootDirectory, "Build", "RunHybrid");
-            var exePath = Path.Combine(runHybridPath, "AstroBot.exe");
-            if (!File.Exists(exePath) || !File.Exists(ShaderPrep.ListPath(runHybridPath)))
+            var exePath = new[] { "AstroBot-NonRT-SoftAssert.exe", "AstroBot-NonRT.exe", "AstroBot.exe" }
+                .Select(name => Path.Combine(runHybridPath, name))
+                .FirstOrDefault(File.Exists);
+            if (exePath == null || !File.Exists(ShaderPrep.ListPath(runHybridPath)))
                 return ShaderPrep.Result.NoList;
 
             var psi = new ProcessStartInfo
@@ -134,6 +136,9 @@ namespace AstroHybrid.App.Services
             {
                 psi.EnvironmentVariables[kvp.Key] = kvp.Value;
             }
+            psi.EnvironmentVariables["APS5_GPU_ENGINE"] = "kyty";
+            psi.EnvironmentVariables["KYTY_GPU_HOST_MODULE"] = "astrohybrid_host.dll";
+            psi.EnvironmentVariables["KYTY_HANG_WATCHDOG"] = "0";
             psi.EnvironmentVariables["KYTY_PIPELINE_LIST"] = "1";
             psi.EnvironmentVariables["KYTY_PIPELINE_LIST_CROSS"] = "1";
             psi.EnvironmentVariables["KYTY_PIPELINE_LIST_PREPARE"] = "1";
