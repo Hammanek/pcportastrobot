@@ -198,6 +198,11 @@ the screen:
 | `AstroHybrid.App` | The AstroHybrid app (WPF, .NET Framework 4.8): setup from a dump (`Services/GameSetup.cs`, a C# port of AnyPS5's `unwrap_self.py`), settings, best settings for the PC, launch |
 | `Tools/release` | `make_release.ps1` builds the download from a working install (with a guard against game files); `make_icon.ps1` draws the app icon |
 
+## Official Repository & Attribution
+
+- **Official repository**: [github.com/imnotsharingmyname/pcportastrobot](https://github.com/imnotsharingmyname/pcportastrobot)
+- If you fork or redistribute builds based on AstroHybrid, please retain the [NOTICE](NOTICE) file and credit the original repository (`imnotsharingmyname/pcportastrobot`).
+
 ## Status
 
 Work in progress, personal use. Not affiliated with or endorsed by Sony Interactive Entertainment, Team ASOBI

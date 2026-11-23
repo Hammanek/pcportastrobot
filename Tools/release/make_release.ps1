@@ -26,6 +26,8 @@ Copy-Item $config (Join-Path $stage 'AstroHybrid.exe.config')
 Copy-Item (Join-Path $root 'Run-AstroHybrid.bat') $stage
 # RecompLauncher reads it from the top of the zip, next to AstroHybrid.exe.
 Copy-Item (Join-Path $root 'recomplauncher.json') $stage
+$noticePath = Join-Path $root 'NOTICE'
+if (Test-Path $noticePath) { Copy-Item $noticePath $stage }
 foreach ($extraBat in 'Run-AstroHybrid-DLSS.bat', 'Run-AstroHybrid-FG.bat') {
     $batPath = Join-Path $root $extraBat
     if (Test-Path $batPath) { Copy-Item $batPath $stage }
