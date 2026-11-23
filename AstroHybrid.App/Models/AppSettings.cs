@@ -121,7 +121,7 @@ namespace AstroHybrid.App.Models
 
         // VSync (Vulkan FIFO presentation) instead of immediate presentation: no tearing.
         [JsonPropertyName("vsync")]
-        public bool VSync { get; set; } = false;
+        public bool VSync { get; set; } = true;
 
         // Graphics card the launcher describes and hands to the game: index into the detected
         // adapters, -1 = automatic (the best card, discrete over integrated) - issue #24.
