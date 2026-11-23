@@ -193,7 +193,28 @@ namespace AstroHybrid.App.ViewModels
         }
 
         // Experimental Features
-        public bool IsExperimentalExpanded { get; set; } = false;
+        public bool IsExperimentalExpanded { get; set; } = true;
+
+        private bool IsAmdSelected =>
+            string.Equals(_mainViewModel.HardwareInfo?.SelectedGpu?.Vendor, "AMD", StringComparison.OrdinalIgnoreCase);
+
+        public bool AsyncVulkanStaging
+        {
+            get => _mainViewModel.Settings.EffectiveAsyncVulkanStaging(_mainViewModel.HardwareInfo);
+            set
+            {
+                if (_mainViewModel.Settings.EffectiveAsyncVulkanStaging(_mainViewModel.HardwareInfo) != value)
+                {
+                    _mainViewModel.Settings.AsyncVulkanStaging = value;
+                    OnPropertyChanged();
+                    _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.Settings));
+                }
+            }
+        }
+
+        public string AsyncVulkanStagingNote => IsAmdSelected
+            ? "Enabled by default on AMD GPUs. Moves texture/DMA staging waits to Vulkan timeline semaphores (KYTY_SUBMIT_WAIT_BEFORE_SIGNAL=1), eliminating host submit stalls and improving FPS and load times in heavy worlds."
+            : "Experimental (off by default on non-AMD GPUs): moves texture/DMA staging waits to Vulkan timeline semaphores (KYTY_SUBMIT_WAIT_BEFORE_SIGNAL=1). Warning: can freeze Windows on NVIDIA RTX 50-series GPUs with Hardware-Accelerated GPU Scheduling (HAGS) enabled.";
 
         // Info texts
         public string LightingNote => "Faster lighting uses the NonRT renderer (AstroBot-NonRT.exe) which disables GI probes and some lighting shaders for better performance.";
