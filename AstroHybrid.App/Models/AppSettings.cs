@@ -40,6 +40,11 @@ namespace AstroHybrid.App.Models
         [JsonPropertyName("fgmode")]
         public int FrameGenMode { get; set; } = 0;
 
+        // AMD FSR frame generation (2x, any graphics card; ASTROHYBRID_FSRFG). Off while NVIDIA frame
+        // generation (FrameGenMode) is on; works with any upscaler.
+        [JsonPropertyName("fsrfg")]
+        public bool FsrFrameGen { get; set; } = false;
+
         [JsonPropertyName("lowlatency")]
         public bool LowLatency { get; set; } = false;
 
@@ -88,12 +93,6 @@ namespace AstroHybrid.App.Models
         [JsonPropertyName("dsSpeaker")]
         public bool DualSenseSpeaker { get; set; } = true;
 
-        [JsonPropertyName("dsWirelessSpeaker")]
-        public bool DualSenseWirelessSpeaker { get; set; } = true;
-
-        [JsonPropertyName("dsWirelessHaptics")]
-        public bool DualSenseWirelessHaptics { get; set; } = true;
-
         // DualSense adaptive triggers: resistance and vibration in percent of what the game asks for
         // (0 = off, 100 = as the game asks; #160).
         [JsonPropertyName("triggerStrength")]
@@ -122,30 +121,16 @@ namespace AstroHybrid.App.Models
 
         // VSync (Vulkan FIFO presentation) instead of immediate presentation: no tearing.
         [JsonPropertyName("vsync")]
-        public bool VSync { get; set; } = false;
+        public bool VSync { get; set; } = true;
 
         // Graphics card the launcher describes and hands to the game: index into the detected
         // adapters, -1 = automatic (the best card, discrete over integrated) - issue #24.
         [JsonPropertyName("gpu")]
         public int Gpu { get; set; } = -1;
 
-        // Conservative renderer configuration and extra diagnostics. Missing values in older settings
-        // files retain this initializer, so Stability Mode is enabled on upgrade unless explicitly opted out.
-        [JsonPropertyName("stabilityMode")]
-        public bool StabilityMode { get; set; } = true;
-
-        // Experimental worker command-buffer size. Off preserves the 16 MiB setting introduced by 1.2.7.
-        [JsonPropertyName("commandBuffer24MiB")]
-        public bool CommandBuffer24MiB { get; set; } = false;
-
         // Runtime options (Advanced page), passed to Run-AstroHybrid.bat; defaults are the script's own.
         [JsonPropertyName("hangWatchdog")]
         public bool HangWatchdog { get; set; } = false;
-
-        // Adds Vulkan device-fault diagnostics and GPU breadcrumbs to crash logs. Keep off for normal play;
-        // these signals are intended for reproducing ErrorDeviceLost/TDR failures.
-        [JsonPropertyName("gpuFaultDiagnostics")]
-        public bool GpuFaultDiagnostics { get; set; } = false;
 
         [JsonPropertyName("shaderCache")]
         public bool ShaderCache { get; set; } = true;
@@ -224,7 +209,8 @@ namespace AstroHybrid.App.Models
         [JsonIgnore]
         public bool IsSuperUltrawideSize => GetAspectRatio(Size) == 32;
 
-        public void Sanitize(bool supportsDlss = true, bool supportsFrameGeneration = true, bool supportsReflex = true, int maxFrameGenMultiplier = 4)
+        public void Sanitize(bool supportsDlss = true, bool supportsFrameGeneration = true, bool supportsReflex = true, int maxFrameGenMultiplier = 4,
+                             bool supportsFsrFrameGen = true)
         {
             if (Lighting < 0 || Lighting > 1) Lighting = 0;
             if (Fps < 0 || Fps > 6) Fps = 0;
@@ -249,6 +235,8 @@ namespace AstroHybrid.App.Models
             if (!supportsReflex) LowLatency = false;
             // Fixed 3x / 4x need a card that can generate that many frames (RTX 50 multi frame generation).
             if (FrameGenMode >= 3 && FrameGenMode > Math.Max(2, maxFrameGenMultiplier)) FrameGenMode = 2;
+            // AMD FSR frame generation needs its runtime next to the game, and NVIDIA frame generation off.
+            if (!supportsFsrFrameGen || FrameGenMode != 0) FsrFrameGen = false;
         }
     }
 

@@ -4,8 +4,11 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 using AstroHybrid.App.Models;
+using AstroHybrid.App.Views;
 
 namespace AstroHybrid.App.Services
 {
@@ -51,6 +54,17 @@ namespace AstroHybrid.App.Services
 
             // Build environment variables from settings
             var envVars = BuildEnvironmentVariables(settings, hardware);
+
+            if (ShaderPrep.Needed(runHybridPath))
+            {
+                bool proceed = true;
+                var app = Application.Current;
+                if (app?.Dispatcher != null)
+                {
+                    proceed = app.Dispatcher.Invoke(() => ShaderPrepWindow.PrepareBeforePlay(this, envVars));
+                }
+                if (!proceed) return 0;
+            }
 
             var psi = new ProcessStartInfo
             {
@@ -98,6 +112,67 @@ namespace AstroHybrid.App.Services
             process.BeginErrorReadLine();
 
             return await tcs.Task;
+        }
+
+        public async Task<ShaderPrep.Result> PrepareShadersAsync(Dictionary<string, string> variables, IProgress<string>? status, CancellationToken ct)
+        {
+            var runHybridPath = Path.Combine(_rootDirectory, "Build", "RunHybrid");
+            var exePath = new[] { "AstroBot-NonRT-SoftAssert.exe", "AstroBot-NonRT.exe", "AstroBot.exe" }
+                .Select(name => Path.Combine(runHybridPath, name))
+                .FirstOrDefault(File.Exists);
+            if (exePath == null || !File.Exists(ShaderPrep.ListPath(runHybridPath)))
+                return ShaderPrep.Result.NoList;
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = exePath,
+                WorkingDirectory = runHybridPath,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            foreach (var kvp in variables)
+            {
+                psi.EnvironmentVariables[kvp.Key] = kvp.Value;
+            }
+            psi.EnvironmentVariables["APS5_GPU_ENGINE"] = "kyty";
+            psi.EnvironmentVariables["KYTY_GPU_HOST_MODULE"] = "astrohybrid_host.dll";
+            psi.EnvironmentVariables["KYTY_HANG_WATCHDOG"] = "0";
+            psi.EnvironmentVariables["KYTY_PIPELINE_LIST"] = "1";
+            psi.EnvironmentVariables["KYTY_PIPELINE_LIST_CROSS"] = "1";
+            psi.EnvironmentVariables["KYTY_PIPELINE_LIST_PREPARE"] = "1";
+            psi.EnvironmentVariables["ASTROHYBRID_CACHE_TITLE_ID"] = "PPSA21567";
+
+            using var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
+            var sawDone = false;
+            var sawNoList = false;
+            process.OutputDataReceived += (s, e) =>
+            {
+                if (string.IsNullOrEmpty(e.Data)) return;
+                var step = ShaderPrep.Step(e.Data);
+                if (step != null) status?.Report(step);
+                if (ShaderPrep.IsDone(e.Data)) sawDone = true;
+                if (ShaderPrep.IsNoList(e.Data)) sawNoList = true;
+            };
+            process.ErrorDataReceived += (s, e) => { };
+
+            if (!process.Start()) return ShaderPrep.Result.Failed;
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+
+            using (ct.Register(() => { try { if (!process.HasExited) process.Kill(); } catch { } }))
+            {
+                await Task.Run(() => process.WaitForExit());
+            }
+            if (ct.IsCancellationRequested) return ShaderPrep.Result.Cancelled;
+            if (sawNoList) return ShaderPrep.Result.NoList;
+            if (process.ExitCode == 0 || sawDone)
+            {
+                ShaderPrep.MarkDone(runHybridPath);
+                return ShaderPrep.Result.Done;
+            }
+            return ShaderPrep.Result.Failed;
         }
 
         public async Task<int> LaunchGameWithDlssAsync(AppSettings settings, HardwareInfo? hardware = null)
@@ -245,12 +320,7 @@ namespace AstroHybrid.App.Services
             {
                 var setup = new GameSetup(_rootDirectory);
                 foreach (var candidate in candidates.Concat(new[] { "AstroBot.exe" }).Distinct())
-                {
-                    // Keep the official 1.2.9 legacy 8-to-16 MiB and Garlic-pool upgrade, then apply
-                    // the user's reversible 16/24 MiB selection without disturbing other 1.2.9 patches.
                     setup.UpgradeCommandBufferTable(candidate);
-                    setup.SetCommandBufferSize(candidate, settings.StabilityMode && settings.CommandBuffer24MiB);
-                }
             }
             catch (Exception ex)
             {
@@ -337,6 +407,16 @@ namespace AstroHybrid.App.Services
                     env["ASTROHYBRID_DLSS_QUALITY"] = dlssQuality[settings.DlssQuality];
             }
 
+            // AMD FSR frame generation (2x, any graphics card; the same AMD FSR SDK 2.4 loader plus
+            // amd_fidelityfx_framegeneration_vk.dll next to the game). It works with any upscaler and is the
+            // other frame generator: off while NVIDIA frame generation is on. The game's own FPS limit stays
+            // as set; the screen shows twice that. Always written, so a value inherited from the environment
+            // never overrides the launcher's choice.
+            bool fsrFrameGen = settings.FsrFrameGen && settings.FrameGenMode == 0 && FsrFrameGenRuntimeAvailable(_rootDirectory);
+            env["ASTROHYBRID_FSRFG"] = fsrFrameGen ? "1" : "0";
+            if (fsrFrameGen)
+                env["ASTROHYBRID_FSR_PATH"] = Path.Combine(_rootDirectory, "Build", "RunHybrid");
+
             // Frame generation plan (AstroBotLauncher.FrameGenPlan): the game is never capped below 30.
             // Auto with a target starts at 2x with the game capped at half the target and lets the game
             // raise the multiplier; fixed modes cap the game at target / multiplier; no lock = uncapped.
@@ -387,28 +467,8 @@ namespace AstroHybrid.App.Services
             // NVIDIA driver (which only changes the present mode) removes the tearing there too (#15).
             if (settings.VSync) env["KYTY_GPU_PRESENT_MODE"] = "Fifo";
 
-            // Stability Mode: conservative scheduling and extra diagnostics. Kept opt-out so users
-            // can restore the official 1.2.9 performance defaults from Advanced Settings.
-            if (settings.StabilityMode)
-            {
-                env["ASTROHYBRID_STABILITY_MODE"] = "1";
-                env["KYTY_BARRIER_BATCH"] = "1";
-                env["KYTY_DISPATCH_OVERLAP"] = "0";
-                env["KYTY_DRAW_RUN"] = "0";
-                env["ASTROHYBRID_OPT_1"] = "0";
-                env["ASTROHYBRID_OPT_2"] = "0";
-                env["ASTROHYBRID_COMMIT_EPOCH_FASTPATH"] = "0";
-                env["ASTROHYBRID_DRAW_PREP_TUNING"] = "0";
-                env["KYTY_AGC_CB_WATERMARK"] = "1";
-                env["KYTY_HANG_WATCHDOG"] = "1";
-                env["ASTROHYBRID_HANG_WATCHDOG"] = "1";
-                env["KYTY_GFX_SLICE_DRAWS"] = "128";
-                env["KYTY_SUBMIT_MIN_INTERVAL_US"] = "0";
-            }
-
             // Advanced page: the variables Run-AstroHybrid.bat reads (it keeps its defaults when unset).
             if (settings.HangWatchdog) env["ASTROHYBRID_HANG_WATCHDOG"] = "1";
-            if (settings.GpuFaultDiagnostics) env["ASTROHYBRID_GPU_FAULT_DIAGNOSTICS"] = "1";
             if (!settings.ShaderCache) env["ASTROHYBRID_SHADER_CACHE"] = "0";
             if (!settings.DrawPrepTuning) env["ASTROHYBRID_DRAW_PREP_TUNING"] = "0";
             if (settings.Priority == "normal" || settings.Priority == "abovenormal" || settings.Priority == "high")
@@ -436,6 +496,15 @@ namespace AstroHybrid.App.Services
             env["APS5_SAVEDATA_TRANSFER_FALLBACK"] = "1";
 
             return env;
+        }
+
+        // AMD's FSR frame generation runtime next to the game (the loader the FSR upscaler uses as well, and
+        // the frame generation DLL): the FSR frame generation option is offered only with both.
+        public static bool FsrFrameGenRuntimeAvailable(string rootDirectory)
+        {
+            var folder = Path.Combine(rootDirectory, "Build", "RunHybrid");
+            return File.Exists(Path.Combine(folder, "amd_fidelityfx_loader_vk.dll")) &&
+                   File.Exists(Path.Combine(folder, "amd_fidelityfx_framegeneration_vk.dll"));
         }
 
         // The renderer selects a card by name (ANYPS5_GPU, a case-insensitive substring of the Vulkan

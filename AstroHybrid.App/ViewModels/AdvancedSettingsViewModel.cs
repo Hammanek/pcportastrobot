@@ -76,38 +76,6 @@ namespace AstroHybrid.App.ViewModels
             }
         }
 
-        public bool StabilityMode
-        {
-            get => _mainViewModel.Settings.StabilityMode;
-            set
-            {
-                if (_mainViewModel.Settings.StabilityMode != value)
-                {
-                    _mainViewModel.Settings.StabilityMode = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(CommandBuffer24MiB));
-                    _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.Settings));
-                }
-            }
-        }
-
-        public bool CommandBuffer24MiB
-        {
-            get => _mainViewModel.Settings.CommandBuffer24MiB;
-            set
-            {
-                if (_mainViewModel.Settings.CommandBuffer24MiB != value)
-                {
-                    _mainViewModel.Settings.CommandBuffer24MiB = value;
-                    OnPropertyChanged();
-                    _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.Settings));
-                }
-            }
-        }
-
-        public string StabilityModeNote => "Uses conservative renderer scheduling and extra command-buffer/hang diagnostics. This is a compatibility option, not a guaranteed crash fix.";
-        public string CommandBuffer24MiBNote => "Experimental: changes each of the five worker command buffers from 16 MiB to 24 MiB. This uses more graphics memory; leave off unless testing.";
-
         public bool HangWatchdog
         {
             get => _mainViewModel.Settings.HangWatchdog;
@@ -116,20 +84,6 @@ namespace AstroHybrid.App.ViewModels
                 if (!Equals(_mainViewModel.Settings.HangWatchdog, value))
                 {
                     _mainViewModel.Settings.HangWatchdog = value;
-                    OnPropertyChanged();
-                    _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.Settings));
-                }
-            }
-        }
-
-        public bool GpuFaultDiagnostics
-        {
-            get => _mainViewModel.Settings.GpuFaultDiagnostics;
-            set
-            {
-                if (!Equals(_mainViewModel.Settings.GpuFaultDiagnostics, value))
-                {
-                    _mainViewModel.Settings.GpuFaultDiagnostics = value;
                     OnPropertyChanged();
                     _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.Settings));
                 }
@@ -247,8 +201,6 @@ namespace AstroHybrid.App.ViewModels
         public string SpeedNote => "The game runs in real-time regardless of FPS. Lower values slow down the game simulation.";
 
         public string HangWatchdogNote => "Records diagnostics when the game hangs. Turn on when reporting a freeze; it costs about 1.8 ms per frame on RTX 50 cards, so it is off by default.";
-
-        public string GpuFaultDiagnosticsNote => "Adds Vulkan device-fault diagnostics and GPU breadcrumbs to the log. Turn on when reporting ErrorDeviceLost or a GPU driver reset; off by default for normal play.";
 
         public string ShaderCacheNote => "Persistent shader and pipeline caches eliminate late shader compiles (100-117ms hitches). Requires title ID.";
 

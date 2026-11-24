@@ -14,7 +14,7 @@ $name = "AstroBotPC-AstroHybrid-$Version"
 $stage = Join-Path $Out $name
 if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
 $run = Join-Path $stage 'Build\RunHybrid'
-New-Item -ItemType Directory -Force $run, (Join-Path $stage 'tools'), (Join-Path $stage 'licenses'), (Join-Path $stage 'Logs') | Out-Null
+New-Item -ItemType Directory -Force $run, (Join-Path $stage 'tools'), (Join-Path $stage 'licenses') | Out-Null
 
 # The app (built with MSBuild, Release) and its libraries.
 $app = Join-Path $root 'AstroHybrid.App\bin\Release'
@@ -24,6 +24,10 @@ $config = Join-Path $root 'AstroHybrid.App\obj\Release\AstroHybrid.exe.config'
 if (-not (Select-String -Path $config -Pattern 'bindingRedirect' -Quiet)) { throw 'generated config has no binding redirects' }
 Copy-Item $config (Join-Path $stage 'AstroHybrid.exe.config')
 Copy-Item (Join-Path $root 'Run-AstroHybrid.bat') $stage
+# RecompLauncher reads it from the top of the zip, next to AstroHybrid.exe.
+Copy-Item (Join-Path $root 'recomplauncher.json') $stage
+$noticePath = Join-Path $root 'NOTICE'
+if (Test-Path $noticePath) { Copy-Item $noticePath $stage }
 foreach ($extraBat in 'Run-AstroHybrid-DLSS.bat', 'Run-AstroHybrid-FG.bat') {
     $batPath = Join-Path $root $extraBat
     if (Test-Path $batPath) { Copy-Item $batPath $stage }
@@ -50,11 +54,16 @@ Get-ChildItem (Join-Path $src 'libs') -File | ForEach-Object {
 $runtime = 'kyty_gpu.dll', 'astrohybrid_host.dll', 'u59-preset.cmd', 'u59-preset.json',
            'nvngx_dlss.dll', 'nvngx_dlssg.dll', 'NvLowLatencyVk.dll',
            'sl.interposer.dll', 'sl.common.dll', 'sl.dlss_g.dll', 'sl.reflex.dll', 'sl.pcl.dll',
-           'amd_fidelityfx_loader_vk.dll', 'amd_fidelityfx_upscaler_vk.dll'
+           'amd_fidelityfx_loader_vk.dll', 'amd_fidelityfx_upscaler_vk.dll', 'amd_fidelityfx_framegeneration_vk.dll'
 foreach ($f in $runtime) { Copy-Item (Join-Path $src $f) $run }
 foreach ($f in 'nvngx_dlss.license.txt', 'streamline.license.txt', 'reflex.license.txt', 'amd_fsr.license.txt') {
     Copy-Item (Join-Path $src $f) $run
     Copy-Item (Join-Path $src $f) (Join-Path $stage 'licenses')
+}
+$pl = Join-Path $src 'PipelineLists'
+if (Test-Path $pl) {
+    New-Item -ItemType Directory -Force (Join-Path $run 'PipelineLists') | Out-Null
+    Copy-Item (Join-Path $pl '*.kyplst') (Join-Path $run 'PipelineLists') -ErrorAction SilentlyContinue
 }
 
 # System fonts: the game lays out its menu and prompt text in the console's system fonts. The Noto
@@ -106,7 +115,8 @@ $bad = Get-ChildItem $stage -Recurse -File | Where-Object {
 $bad = $bad | Where-Object { $_.Name -ne 'AstroBot Launcher.exe' }
 if ($bad) { $bad.FullName; throw 'game or session files found in the release' }
 
-$zip = Join-Path $Out "$name.zip"
+# System and processor in the name, so launchers pick the file for the PC (RecompLauncher).
+$zip = Join-Path $Out "$name-Windows-x64.zip"
 if (Test-Path $zip) { Remove-Item $zip }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 # Files at the zip's root, no wrapper folder: the launcher's updater (1.2.2 and older) copies the archive's

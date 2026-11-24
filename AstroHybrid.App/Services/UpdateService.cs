@@ -74,24 +74,11 @@ namespace AstroHybrid.App.Services
                 // Load settings to check ignored version and last check time
                 var settings = _settingsManager.Load();
 
-                // Respect check interval (default 24 hours) unless forced
-                if (!forceCheck && settings.LastUpdateCheck.HasValue)
-                {
-                    var elapsed = DateTime.Now - settings.LastUpdateCheck.Value;
-                    if (elapsed.TotalHours < 24)
-                    {
-                        state.IsChecking = false;
-                        state.LastCheckTime = settings.LastUpdateCheck.Value;
-                        state.ErrorMessage = "Update check skipped (checked recently). Use force check to override.";
-                        StateChanged?.Invoke(state);
-                        return state;
-                    }
-                }
-
                 var releases = await FetchReleasesAsync();
 
                 // Find the latest non-prerelease release with a valid launcher asset
                 UpdateInfo? latestUpdate = null;
+                UpdateInfo? ignoredUpdate = null;
 
                 foreach (var release in releases)
                 {
@@ -126,6 +113,7 @@ namespace AstroHybrid.App.Services
                             {
                                 // Update was ignored, but still track it
                                 state.IgnoredVersion = version;
+                                ignoredUpdate = updateInfo;
                             }
                         }
                     }
@@ -133,6 +121,7 @@ namespace AstroHybrid.App.Services
 
                 state.UpdateAvailable = latestUpdate != null;
                 state.LatestUpdate = latestUpdate;
+                state.IgnoredUpdate = ignoredUpdate;
                 state.LastCheckTime = DateTime.Now;
                 state.IsChecking = false;
 
@@ -194,10 +183,12 @@ namespace AstroHybrid.App.Services
         {
             var state = new UpdateState
             {
+                UpdateAvailable = true,
                 IsDownloading = true,
                 DownloadProgress = 0,
-                DownloadStatus = "Starting download...",
-                LatestUpdate = updateInfo
+                DownloadStatus = $"Updating to {updateInfo.Version}... starting download",
+                LatestUpdate = updateInfo,
+                CurrentVersion = GetCurrentVersion()
             };
 
             StateChanged?.Invoke(state);
@@ -223,6 +214,7 @@ namespace AstroHybrid.App.Services
                 using var fileStream = File.Create(tempFile);
 
                 int bytesRead;
+                double reported = -1;
                 while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)
                 {
                     await fileStream.WriteAsync(buffer, 0, bytesRead);
@@ -231,15 +223,18 @@ namespace AstroHybrid.App.Services
                     if (totalBytes > 0)
                     {
                         var progressPercent = (double)totalRead / totalBytes;
+                        // About 200 UI updates per download instead of one per 8 KB block.
+                        if (progressPercent - reported < 0.005 && totalRead < totalBytes) continue;
+                        reported = progressPercent;
                         state.DownloadProgress = progressPercent;
-                        state.DownloadStatus = $"Downloading... {progressPercent:P1} ({FormatBytes(totalRead)} / {FormatBytes(totalBytes)})";
+                        state.DownloadStatus = $"Updating to {updateInfo.Version}... {progressPercent:P0} ({FormatBytes(totalRead)} / {FormatBytes(totalBytes)})";
                         StateChanged?.Invoke(state);
                         progress?.Report((progressPercent, state.DownloadStatus));
                     }
                 }
 
                 state.DownloadProgress = 1.0;
-                state.DownloadStatus = "Download complete. Verifying...";
+                state.DownloadStatus = $"Updating to {updateInfo.Version}... verifying download";
                 StateChanged?.Invoke(state);
 
                 // Verify file integrity if SHA256 is provided
@@ -252,14 +247,14 @@ namespace AstroHybrid.App.Services
                     }
                 }
 
-                state.DownloadStatus = "Download verified successfully";
+                state.DownloadStatus = $"Updating to {updateInfo.Version}... download verified";
                 StateChanged?.Invoke(state);
                 return true;
             }
             catch (Exception ex)
             {
                 state.IsDownloading = false;
-                state.DownloadStatus = $"Download failed: {ex.Message}";
+                state.DownloadStatus = $"Update failed while downloading: {ex.Message}. Press Update to try again.";
                 state.ErrorMessage = ex.Message;
                 StateChanged?.Invoke(state);
                 return false;
@@ -270,13 +265,15 @@ namespace AstroHybrid.App.Services
         {
             var state = new UpdateState
             {
+                UpdateAvailable = true,
                 IsInstalling = true,
-                DownloadStatus = "Preparing installation...",
-                LatestUpdate = updateInfo
+                DownloadProgress = 1.0,
+                DownloadStatus = $"Updating to {updateInfo.Version}... preparing files",
+                LatestUpdate = updateInfo,
+                CurrentVersion = GetCurrentVersion()
             };
             StateChanged?.Invoke(state);
 
-            var rollbackJournal = new System.Collections.Generic.List<System.Tuple<string, string?>>();
             try
             {
                 var tempFile = Path.Combine(_tempDirectory, updateInfo.FileName);
@@ -288,10 +285,11 @@ namespace AstroHybrid.App.Services
                 // Create backup of current launcher
                 await BackupCurrentLauncherAsync();
 
-                state.DownloadStatus = "Extracting update...";
+                state.DownloadStatus = $"Updating to {updateInfo.Version}... unpacking";
                 StateChanged?.Invoke(state);
 
-                // Extract to temp directory
+                // Extract to temp directory. The running executable cannot reliably replace itself,
+                // so a small updater process will copy these files after this process exits.
                 var extractDir = Path.Combine(_tempDirectory, "extract");
                 if (Directory.Exists(extractDir))
                 {
@@ -299,10 +297,7 @@ namespace AstroHybrid.App.Services
                 }
                 Directory.CreateDirectory(extractDir);
 
-                ZipFile.ExtractToDirectory(tempFile, extractDir);
-
-                state.DownloadStatus = "Installing update...";
-                StateChanged?.Invoke(state);
+                await Task.Run(() => ZipFile.ExtractToDirectory(tempFile, extractDir));
 
                 // Find the launcher executable in the extracted files
                 var launcherExe = FindLauncherExe(extractDir);
@@ -311,50 +306,24 @@ namespace AstroHybrid.App.Services
                     throw new InvalidOperationException("Launcher executable not found in update package");
                 }
 
-                // Copy new launcher files to application directory, journaling for rollback
-                await CopyUpdateFilesAsync(extractDir, rollbackJournal);
-
-                // Best-effort cleanup of the moved-aside originals; files still loaded by this
-                // running process stay locked and are left on disk - no later-run cleanup exists.
-                foreach (var entry in rollbackJournal)
-                {
-                    if (entry.Item2 != null)
-                    {
-                        try { File.Delete(entry.Item2); } catch { }
-                    }
-                }
-
-                state.DownloadStatus = "Update installed successfully";
+                // The files are copied in once the launcher has closed (it can't replace itself while
+                // running): the player presses "Restart launcher" (RestartToApplyUpdate).
+                _pendingUpdateSource = PackageRoot(extractDir);
                 state.IsInstalling = false;
+                state.IsReadyToRestart = true;
+                state.DownloadStatus = $"Update {updateInfo.Version} is ready. Restart the launcher to finish updating.";
                 StateChanged?.Invoke(state);
-
-                // Clean up
-                try
-                {
-                    Directory.Delete(extractDir, true);
-                    File.Delete(tempFile);
-                }
-                catch { }
 
                 return true;
             }
             catch (Exception ex)
             {
                 state.IsInstalling = false;
-                state.DownloadStatus = $"Installation failed: {ex.Message}";
+                state.DownloadStatus = $"Update failed while preparing: {ex.Message}. Press Update to try again.";
                 state.ErrorMessage = ex.Message;
                 StateChanged?.Invoke(state);
 
-                // Undo the partial copy precisely (added files removed, moved-aside originals
-                // moved back), then restore from backup as the pre-existing safety net.
-                // Rollback failures are surfaced on the error state, never masking the
-                // original install error, and no restoration is implied when incomplete.
-                var rollbackFailures = RollbackCopiedFiles(rollbackJournal);
-                if (rollbackFailures.Count > 0)
-                {
-                    state.ErrorMessage = ex.Message + " (rollback incomplete: " + rollbackFailures.Count + " file(s) could not be restored)";
-                    StateChanged?.Invoke(state);
-                }
+                // Try to restore from backup
                 await RestoreFromBackupAsync();
                 return false;
             }
@@ -399,21 +368,33 @@ namespace AstroHybrid.App.Services
                 {
                     foreach (var file in Directory.GetFiles(latestBackup, "*.exe"))
                     {
-                        ReplaceFile(file, Path.Combine(appDir, Path.GetFileName(file)));
+                        File.Copy(file, Path.Combine(appDir, Path.GetFileName(file)), true);
                     }
                     foreach (var file in Directory.GetFiles(latestBackup, "*.dll"))
                     {
-                        ReplaceFile(file, Path.Combine(appDir, Path.GetFileName(file)));
+                        File.Copy(file, Path.Combine(appDir, Path.GetFileName(file)), true);
                     }
                     foreach (var file in Directory.GetFiles(latestBackup, "*.config"))
                     {
-                        ReplaceFile(file, Path.Combine(appDir, Path.GetFileName(file)));
+                        File.Copy(file, Path.Combine(appDir, Path.GetFileName(file)), true);
                     }
                 }
             }
             catch { }
 
             await Task.CompletedTask;
+        }
+
+        // Release zips up to 1.2.2 hold everything inside one folder (AstroBotPC-AstroHybrid-x.y.z\...).
+        // Copying that layout as-is put the update in a subfolder of the install and left the running
+        // launcher unchanged, so the update was offered again forever. The package root is that folder
+        // when the archive is a single folder with no loose files, otherwise the extract folder itself.
+        public static string PackageRoot(string extractDir)
+        {
+            var directories = Directory.GetDirectories(extractDir);
+            if (directories.Length == 1 && Directory.GetFiles(extractDir).Length == 0)
+                return directories[0];
+            return extractDir;
         }
 
         private string? FindLauncherExe(string extractDir)
@@ -429,67 +410,7 @@ namespace AstroHybrid.App.Services
             return null;
         }
 
-        // Windows locks the files of the running process for overwrite and delete, but a
-        // rename within the same volume still succeeds. Move an existing destination aside
-        // before copying so self-updates can replace the running launcher exe and its loaded
-        // DLLs; without this, File.Copy throws IOException on the locked file, InstallUpdateAsync
-        // fails, and RestoreFromBackupAsync hits the same lock trying to copy the backup back.
-        // Returns the path the previous content of destFile was moved to, or null when
-        // destFile did not exist (the copied file was newly added).
-        private static string? ReplaceFile(string sourceFile, string destFile,
-            System.Collections.Generic.List<System.Tuple<string, string?>>? rollbackJournal = null)
-        {
-            string? movedAside = null;
-            if (File.Exists(destFile))
-            {
-                var oldFile = destFile + ".old";
-                try { if (File.Exists(oldFile)) File.Delete(oldFile); } catch { }
-                try
-                {
-                    File.Move(destFile, oldFile);
-                    movedAside = oldFile;
-                }
-                catch
-                {
-                    // A stale locked .old blocked the rename; fall back to a unique name.
-                    movedAside = destFile + ".old." + DateTime.Now.Ticks.ToString("x");
-                    File.Move(destFile, movedAside);
-                }
-            }
-            // Journal BEFORE the copy: if the copy itself throws after a successful
-            // rename (AV transient, disk full, ...), the original is still restorable
-            // from its moved-aside path, and a partially written new file removed.
-            rollbackJournal?.Add(System.Tuple.Create(destFile, movedAside));
-            File.Copy(sourceFile, destFile, true);
-            return movedAside;
-        }
-
-        // Precise undo for a failed install: delete every file the copy added and move every
-        // moved-aside original back, in reverse copy order. The running process's files can be
-        // renamed but not deleted; the new copies are not locked, so this restores them.
-        // Best-effort undo; every file it cannot restore is reported so an incomplete
-        // rollback is visible instead of silently lost. Never masks the original error.
-        private static System.Collections.Generic.List<string> RollbackCopiedFiles(System.Collections.Generic.List<System.Tuple<string, string?>> journal)
-        {
-            var failures = new System.Collections.Generic.List<string>();
-            for (int i = journal.Count - 1; i >= 0; i--)
-            {
-                var dest = journal[i].Item1;
-                var movedAside = journal[i].Item2;
-                try
-                {
-                    if (File.Exists(dest)) File.Delete(dest);
-                    if (movedAside != null && File.Exists(movedAside)) File.Move(movedAside, dest);
-                }
-                catch
-                {
-                    failures.Add(dest);
-                }
-            }
-            return failures;
-        }
-
-        private async Task CopyUpdateFilesAsync(string extractDir, System.Collections.Generic.List<System.Tuple<string, string?>>? rollbackJournal = null)
+        private async Task CopyUpdateFilesAsync(string extractDir)
         {
             var appDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
             if (appDir == null) throw new InvalidOperationException("Cannot determine application directory");
@@ -506,11 +427,87 @@ namespace AstroHybrid.App.Services
                     Directory.CreateDirectory(destDir);
                 }
 
-                ReplaceFile(file, destFile, rollbackJournal);
+                File.Copy(file, destFile, true);
             }
 
             await Task.CompletedTask;
         }
+
+        private string? _pendingUpdateSource;
+
+        public bool HasPendingUpdate => _pendingUpdateSource != null && Directory.Exists(_pendingUpdateSource);
+
+        // Closes the launcher; a small script copies the prepared update in place and starts the new
+        // launcher (apply-update.ps1).
+        public async Task RestartToApplyUpdateAsync()
+        {
+            if (!HasPendingUpdate)
+                throw new InvalidOperationException("No prepared update to install");
+            await ScheduleUpdateInstallAsync(_pendingUpdateSource!);
+        }
+
+        private async Task ScheduleUpdateInstallAsync(string extractDir)
+        {
+            var appDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+            if (appDir == null) throw new InvalidOperationException("Cannot determine application directory");
+
+            var scriptPath = Path.Combine(_tempDirectory, "apply-update.ps1");
+            var currentPid = Process.GetCurrentProcess().Id;
+            var escapedSource = EscapePowerShellString(extractDir);
+            var escapedTarget = EscapePowerShellString(appDir);
+            var escapedExe = EscapePowerShellString(System.Reflection.Assembly.GetExecutingAssembly().Location);
+            var escapedTemp = EscapePowerShellString(_tempDirectory);
+            var script = $@"
+$ErrorActionPreference = 'Stop'
+$source = (Get-Item -LiteralPath '{escapedSource}').FullName
+$target = '{escapedTarget}'
+$launcher = '{escapedExe}'
+$temp = '{escapedTemp}'
+$log = Join-Path $temp 'apply-update.log'
+while (Get-Process -Id {currentPid} -ErrorAction SilentlyContinue) {{ Start-Sleep -Milliseconds 250 }}
+$failed = @()
+Get-ChildItem -LiteralPath $source -Recurse -File | ForEach-Object {{
+    $relative = $_.FullName.Substring($source.Length).TrimStart('\')
+    $destination = Join-Path $target $relative
+    $directory = Split-Path -Parent $destination
+    $copied = $false
+    for ($try = 0; $try -lt 20 -and -not $copied; $try++) {{
+        try {{
+            if ($directory) {{ New-Item -ItemType Directory -Force -Path $directory | Out-Null }}
+            Copy-Item -LiteralPath $_.FullName -Destination $destination -Force
+            $copied = $true
+        }} catch {{ Start-Sleep -Milliseconds 500 }}
+    }}
+    if (-not $copied) {{ $failed += $relative }}
+}}
+if ($failed.Count -eq 0) {{
+    Remove-Item -LiteralPath $source -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath (Join-Path $temp '*.zip') -Force -ErrorAction SilentlyContinue
+    ""$(Get-Date -Format s) update applied"" | Out-File -FilePath $log -Append
+}} else {{
+    # Keep the prepared files so the next Update finishes the job; never leave the player without a launcher.
+    ""$(Get-Date -Format s) could not replace (in use?): $($failed -join ', ')"" | Out-File -FilePath $log -Append
+}}
+Start-Process -FilePath $launcher
+Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
+";
+            File.WriteAllText(scriptPath, script, Encoding.UTF8);
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                Arguments = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{scriptPath}\"",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WorkingDirectory = appDir
+            };
+            Process.Start(psi);
+            await Task.Delay(150);
+            System.Windows.Application.Current?.Dispatcher.BeginInvoke(new Action(() =>
+                System.Windows.Application.Current.Shutdown()));
+        }
+
+        private static string EscapePowerShellString(string value) => value.Replace("'", "''");
 
         private async Task<string> ComputeSha256Async(string filePath)
         {

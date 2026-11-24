@@ -79,26 +79,10 @@
                     <TextBlock Text="Runtime Options" Style="{StaticResource SectionHeaderStyle}"/>
 
                     <StackPanel Margin="0,10,0,0">
-                        <CheckBox Content="Stability Mode (recommended)"
-                                  IsChecked="{Binding StabilityMode}"
-                                  Style="{StaticResource ModernCheckBoxStyle}"/>
-                        <TextBlock Text="{Binding StabilityModeNote}" Style="{StaticResource MutedTextStyle}" Margin="28,4,0,6" TextWrapping="Wrap"/>
-
-                        <CheckBox Content="24 MiB Command Buffers (experimental)"
-                                  IsChecked="{Binding CommandBuffer24MiB}"
-                                  IsEnabled="{Binding StabilityMode}"
-                                  Style="{StaticResource ModernCheckBoxStyle}"/>
-                        <TextBlock Text="{Binding CommandBuffer24MiBNote}" Style="{StaticResource MutedTextStyle}" Margin="28,4,0,10" TextWrapping="Wrap"/>
-
                         <CheckBox Content="Hang Watchdog (record diagnostics on freeze)"
                                   IsChecked="{Binding HangWatchdog}"
                                   Style="{StaticResource ModernCheckBoxStyle}"/>
                         <TextBlock Text="{Binding HangWatchdogNote}" Style="{StaticResource MutedTextStyle}" Margin="28,4,0,10" TextWrapping="Wrap"/>
-
-                        <CheckBox Content="GPU Fault Diagnostics (breadcrumbs)"
-                                  IsChecked="{Binding GpuFaultDiagnostics}"
-                                  Style="{StaticResource ModernCheckBoxStyle}"/>
-                        <TextBlock Text="{Binding GpuFaultDiagnosticsNote}" Style="{StaticResource MutedTextStyle}" Margin="28,4,0,10" TextWrapping="Wrap"/>
 
                         <CheckBox Content="Persistent Shader Cache (eliminates compile hitches)"
                                   IsChecked="{Binding ShaderCache}"

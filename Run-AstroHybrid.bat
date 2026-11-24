@@ -26,33 +26,16 @@ rem RTX 50 GPUs, where it costs the command processor ~1.8 ms per frame in Sky G
 rem It only records diagnostics when the game hangs. ASTROHYBRID_HANG_WATCHDOG=1 (or KYTY_HANG_WATCHDOG
 rem set by you) brings it back; set it when reporting a freeze.
 if not defined KYTY_HANG_WATCHDOG if not "%ASTROHYBRID_HANG_WATCHDOG%"=="1" set KYTY_HANG_WATCHDOG=0
-rem GPU fault diagnostics (off by default): when reporting ErrorDeviceLost, set
-rem ASTROHYBRID_GPU_FAULT_DIAGNOSTICS=1 to include Vulkan device-fault diagnostics and GPU breadcrumbs.
-rem Keep explicit KYTY_* values untouched so advanced users can enable only one signal.
-if "%ASTROHYBRID_GPU_FAULT_DIAGNOSTICS%"=="1" (
-  if not defined KYTY_DEVICE_FAULT_DIAGNOSTICS set KYTY_DEVICE_FAULT_DIAGNOSTICS=1
-  if not defined KYTY_GPU_BREADCRUMBS set KYTY_GPU_BREADCRUMBS=1
-)
+rem Dispatch overlap off (error 321, #154, #65): it let two consecutive compute dispatches run unordered,
+rem which is safe on the PS5's GPU (it starts every workgroup of the first dispatch before the second) but
+rem not on a PC GPU, where a later dispatch waiting on an earlier one can take the whole GPU and stall it
+rem until Windows resets the device. A/B 2026-11-21, Sky Garden: same average FPS, no 300 ms spikes.
+if not defined KYTY_DISPATCH_OVERLAP set KYTY_DISPATCH_OVERLAP=0
 rem Persistent shader and pipeline cache behaviour (verified 2026-11-08; see OVERNIGHT.md): without the title ID the
 rem hybrid never opened Kyty's caches and compiled shaders during play (100-117 ms hitches); with it, no
 rem late compiles and no frame over 80 ms. ASTROHYBRID_SHADER_CACHE=0 turns it off.
 if not defined ASTROHYBRID_CACHE_TITLE_ID if not "%ASTROHYBRID_SHADER_CACHE%"=="0" set ASTROHYBRID_CACHE_TITLE_ID=PPSA21567
 if exist "%ROOT%Build\RunHybrid\u59-preset.cmd" call "%ROOT%Build\RunHybrid\u59-preset.cmd"
-rem Stability Mode overrides also apply to direct batch-file launches, after the preset is loaded.
-if "%ASTROHYBRID_STABILITY_MODE%"=="1" (
-  set KYTY_BARRIER_BATCH=1
-  set KYTY_DISPATCH_OVERLAP=0
-  set KYTY_DRAW_RUN=0
-  set ASTROHYBRID_OPT_1=0
-  set ASTROHYBRID_OPT_2=0
-  set ASTROHYBRID_COMMIT_EPOCH_FASTPATH=0
-  set ASTROHYBRID_DRAW_PREP_TUNING=0
-  set KYTY_AGC_CB_WATERMARK=1
-  set KYTY_HANG_WATCHDOG=1
-  set ASTROHYBRID_HANG_WATCHDOG=1
-  set KYTY_GFX_SLICE_DRAWS=128
-  set KYTY_SUBMIT_MIN_INTERVAL_US=0
-)
 rem Dump folders setup could not link into app0 (an exFAT, FAT32 or network drive, issue #135): the game
 rem reads them from the dump through AnyPS5's path aliases (APS5_PATH_ALIASES, one line written by setup).
 if not defined APS5_PATH_ALIASES if exist "%ROOT%Build\RunHybrid\app0-aliases.txt" set /p APS5_PATH_ALIASES=<"%ROOT%Build\RunHybrid\app0-aliases.txt"

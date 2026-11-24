@@ -227,6 +227,15 @@ namespace AstroHybrid.App.Services
 
             var nonRt = (byte[])baseBytes.Clone();
             features.FasterLighting = ApplyAll(nonRt, FasterLightingPatches, log);
+            if (!features.FasterLighting)
+            {
+                var patched0107 = Patch0107.Apply(baseBytes, log);
+                if (patched0107 != null)
+                {
+                    nonRt = patched0107;
+                    features.FasterLighting = true;
+                }
+            }
             if (features.FasterLighting)
             {
                 if (ShouldWrite("AstroBot-NonRT"))
@@ -564,7 +573,6 @@ namespace AstroHybrid.App.Services
 
         private const string CommandBufferTable8 = "0800000008000000080000000800000008000000100020003000400008000000";
         private const string CommandBufferTable16 = "1000000010000000100000001000000010000000100020003000400008000000";
-        private const string CommandBufferTable24 = "1800000018000000180000001800000018000000100020003000400008000000";
         // The game's fixed graphics (Garlic) memory pool: mov eax, 0x87C00000 (2172 MiB). The 16 MiB command
         // buffers (#159) come out of it, and Trunk of Funk then missed it by 256 KB ("Out of graphics memory
         // [Garlic]", a freeze at the end of the loading animation: #166, #173, #178, #179). Raised by 256 MiB to
@@ -596,41 +604,6 @@ namespace AstroHybrid.App.Services
             if (table || garlic) File.WriteAllBytes(path, bytes);
             File.AppendAllLines(marker, new[] { exeName });
             return table || garlic;
-        }
-
-        // Select 16 or 24 MiB for the five worker command buffers. UpgradeCommandBufferTable is called
-        // first by the launcher, so legacy 8 MiB installs are upgraded before this reversible choice.
-        // Unknown executable patterns are left untouched rather than risking a binary patch at the wrong offset.
-        public bool SetCommandBufferSize(string exeName, bool use24MiB, Action<string>? log = null)
-        {
-            log ??= _ => { };
-            var path = Path.Combine(_runHybrid, exeName);
-            if (!File.Exists(path)) return false;
-            var bytes = File.ReadAllBytes(path);
-            string from = use24MiB ? CommandBufferTable16 : CommandBufferTable24;
-            string to = use24MiB ? CommandBufferTable24 : CommandBufferTable16;
-            string patchName = use24MiB ? "cmdbuf_worker_mib_table_24" : "cmdbuf_worker_mib_table_16_restore";
-            var (pattern, anyByte) = HexPattern(from);
-            int at = FindUnique(bytes, pattern, out int count, anyByte);
-            if (at < 0)
-            {
-                // Already at the requested size is a normal no-op.
-                var (targetPattern, targetAny) = HexPattern(to);
-                int targetAt = FindUnique(bytes, targetPattern, out int targetCount, targetAny);
-                if (targetAt >= 0)
-                {
-                    log($"{exeName}: worker command buffers already {(use24MiB ? 24 : 16)} MiB");
-                    return false;
-                }
-                log($"{exeName}: {patchName} skipped (source pattern found {count} times; target pattern found {targetCount} times)");
-                return false;
-            }
-            var (replacement, keep) = HexPattern(to);
-            for (int i = 0; i < replacement.Length; i++)
-                if (!keep[i]) bytes[at + i] = replacement[i];
-            File.WriteAllBytes(path, bytes);
-            log($"{exeName}: worker command buffers set to {(use24MiB ? 24 : 16)} MiB at 0x{at:x}");
-            return true;
         }
 
         // New setups: the larger Garlic pool, with the 16 MiB command buffers (see GarlicPool).
