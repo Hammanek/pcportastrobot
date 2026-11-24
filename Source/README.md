@@ -8,7 +8,7 @@ rerunning game setup with an older download. See [the ZAR guide](../Docs/ZAR.md)
 
 | File in the download | Built from |
 |---|---|
-| `Build\RunHybrid\kyty_gpu.dll` | KytyPS5 (Jetsku), tag `u59-windows-20261024-int21` (commit `744705ee1df4b0acb1af382ff5c32ca4a20aa5f7`) + `Source/kyty-hybrid/*.patch` (64 patches) |
+| `Build\RunHybrid\kyty_gpu.dll` | KytyPS5 (Jetsku), tag `u59-windows-20261024-int21` (commit `744705ee1df4b0acb1af382ff5c32ca4a20aa5f7`) + `Source/kyty-hybrid/*.patch` (64 patches; 0062 is not in this release line) |
 | `Build\RunHybrid\libs\*.prx`, `astrohybrid_host.dll`, `tools\relinker.exe` | AnyPS5, upstream `main` commit `319621ba2e578bd053b0baba2877fe70520e0737` + `Source/anyps5/*.patch` (32 patches) |
 | `AstroHybrid.exe` | `AstroHybrid.App/` in this repository |
 | `nvngx_dlss.dll`, `nvngx_dlssg.dll`, `sl.*.dll`, `NvLowLatencyVk.dll` | NVIDIA runtime files, unmodified (DLSS SDK / Streamline 2.14.16), under the licences in `licenses/` |
@@ -30,7 +30,7 @@ cd kyty
 git checkout u59-windows-20261024-int21
 git submodule update --init --recursive
 git am --keep-cr <this repo>/Source/kyty-hybrid/*.patch
-git rev-parse HEAD^{tree}     # 6203e7229aca4d49614de97a7555ba7f7b51c883
+git rev-parse HEAD^{tree}     # 766ea2d05fe7a907e7e649ee9db83ed83e4d4b6e
 ```
 
 Build (Windows, Visual Studio 2022 Build Tools x64 environment, LLVM 22.1.3 clang-cl, Ninja, Vulkan SDK):

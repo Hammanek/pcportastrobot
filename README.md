@@ -89,6 +89,10 @@ Command line: `AstroHybrid.exe --setup "<dump folder>"` runs setup headless; `--
   share), dedicated / shared memory, clock, power and temperature of the GPU the renderer uses, on every
   vendor (Intel Graphics Control Library on Intel, D3DKMT on NVIDIA / AMD, SoC temperature from ACPI on
   integrated GPUs). Before, Windows showed "GPU n/a".
+- **AMD FSR Frame Generation on Intel Arc** (Kyty patch 0065): GPUs with a single graphics queue take FSR's
+  three queues from a compute family that presents, and FSR's oversized descriptor pools (which Intel's
+  driver refused, so the context was never created) are reduced. Tested on an Arc B390 with XeSS: 46 FPS
+  on screen with the game at 23 FPS.
 - Frame Generation is active while the game window is focused. Do not combine it with NVIDIA Smooth Motion.
 
 ## Status
