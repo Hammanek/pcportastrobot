@@ -20,7 +20,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
  1 file changed, 127 insertions(+), 4 deletions(-)
 
 diff --git a/src/common/cpuPlacement.cpp b/src/common/cpuPlacement.cpp
-index ba8f40a5..b4d79013 100644
+index ba8f40a5..493fba21 100644
 --- a/src/common/cpuPlacement.cpp
 +++ b/src/common/cpuPlacement.cpp
 @@ -22,6 +22,10 @@
@@ -116,10 +116,10 @@ index ba8f40a5..b4d79013 100644
  #endif
  	// KYTY_VCACHE_PLACEMENT.
  	VCacheTopology                        topology;
-@@ -812,12 +884,42 @@ std::vector<uint32_t> GuestIdsLocked(const State& state) {
- // of the V-cache placement, or every allowed processor with only KYTY_CPU_SETS), the reserved
- // threads' and the cold threads' selected CPU sets. `keep_default`: another process's default CPU
- // sets stay in effect (an external rule appeared; KYTY_CPU_RESERVE_REASSERT is off).
+@@ -807,6 +879,36 @@ std::vector<uint32_t> GuestIdsLocked(const State& state) {
+ }
+ #endif
+ 
 +#if !defined(_WIN32)
 +// Every thread of the process gets its mask: new threads inherit their creator's, so a periodic
 +// pass (StartMonitor) only catches threads the CP or the recorder created and any re-pinning.
@@ -150,8 +150,10 @@ index ba8f40a5..b4d79013 100644
 +}
 +#endif
 +
- void ApplyLayoutLocked(State& state, const char* why, bool log = true, bool keep_default = false) {
- 	uint64_t affinity = 0;
+ // State mutex held: computes the layout for the current process mask and constraint and applies
+ // it: the process default CPU sets (the general processors of a reservation, the hot processors
+ // of the V-cache placement, or every allowed processor with only KYTY_CPU_SETS), the reserved
+@@ -817,7 +919,7 @@ void ApplyLayoutLocked(State& state, const char* why, bool log = true, bool keep
  #if defined(_WIN32)
  	state.sets = ReadCpuSets(affinity, state.external);
  #else
