@@ -1,5 +1,7 @@
 # Astro Bot — Native PC Port (AstroHybrid)
 
+<a href="https://recomplauncher.com/game/pcportastrobot"><picture><source media="(prefers-color-scheme: dark)" srcset="https://recomplauncher.com/assets/press/launcher/badge-light.svg"><img alt="Get it on RecompLauncher" src="https://recomplauncher.com/assets/press/launcher/badge-dark.svg" height="48"></picture></a>
+
 A native PC port of **Astro Bot** (PPSA21567, v01.019.000) for **Windows** and **Linux**, with **60+ FPS** support, **NVIDIA DLSS Super Resolution & (Multi) Frame Generation**, **AMD FSR Upscaling & Frame Generation**, **NVIDIA Reflex**, **Ultrawide (21:9 / 32:9)**, **Stability Mode**, **RecompLauncher** integration, and full controller support.
 
 **No game files are in this repository or in the download**, and none will be: no game executable, assets, shaders, keys, saves, or game artwork. You need your own legally owned decrypted dump of the game; the setup converts it locally on your PC.
