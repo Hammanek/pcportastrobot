@@ -3,6 +3,7 @@ using System.IO;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Threading;
 using AstroHybrid.App.Models;
 using AstroHybrid.App.Services;
 using AstroHybrid.App.ViewModels;
@@ -43,6 +44,23 @@ namespace AstroHybrid.App.Tests
             Assert.Null(vm.GameInfo);
             Assert.False(vm.IsValidating);
             Assert.True(vm.ValidateCommand.CanExecute(null));
+        }
+
+        [Fact]
+        public async Task SuccessfulValidationRequestsInstallRequery()
+        {
+            var vm = new SetupWizardViewModel(_root,
+                (path, progress, token) => Task.FromResult(Valid(path)));
+            vm.GameDumpPath = Path.Combine(_root, "valid.zar");
+            var requeryRequested = false;
+            vm.InstallCommand.CanExecuteChanged += (_, _) => requeryRequested = true;
+
+            await StartValidation(vm);
+
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.Background);
+            Assert.True(vm.CanProceed);
+            Assert.True(vm.InstallCommand.CanExecute(null));
+            Assert.True(requeryRequested);
         }
 
         private static Task StartValidation(SetupWizardViewModel vm)

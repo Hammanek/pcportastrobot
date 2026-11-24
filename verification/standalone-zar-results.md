@@ -3,7 +3,7 @@
 ## Implementation and automated tests
 
 - Full-framework build: `VS2022 MSBuild /t:Restore,Build /p:Configuration=Release` — PASS (0 errors).
-- VSTest: `Tests/AstroHybrid.App.Tests/bin/Release/AstroHybrid.App.Tests.dll` — **28/28 PASS** after the independent review fixes.
+- VSTest: `Tests/AstroHybrid.App.Tests/bin/Release/AstroHybrid.App.Tests.dll` — **29/29 PASS**, including the Install-button requery regression.
 - `git diff --check` — PASS.
 - `Tests/test_zar_layout.py` — 17 PASS, 1 pre-existing Windows error in `test_relative_source_archive_symlink_is_resolved_before_linking`; the same error was reproduced in the untouched source checkout before changes.
 - `Tests/test_hybrid_launcher.py` — not runnable in the source-only checkout because generated `Build/RunHybrid/u59-preset.cmd` and the MinGCC fixture toolchain are absent. This is not counted as a product regression or a pass.
@@ -48,5 +48,9 @@ After the fixes, the real archive again returned VALID with the same required-en
 Pre-fix deployment backup: `d:\download\Astro Bot\AstroHybrid-backup-20261124-165233`.
 
 Final deployment backup: `d:\download\Astro Bot\AstroHybrid-backup-20261124-171838`.
+
+Install button deployment backup: `d:\download\Astro Bot\AstroHybrid-backup-20261124-185707`.
+
+Install-button follow-up: reproduced `IsEnabled=False` for at least 2 seconds after successful real-archive validation despite valid `GameInfo` and `CanProceed=True`. `SuccessfulValidationRequestsInstallRequery` failed before the fix and passed after it; the final UI reported `IsEnabled=True` and `IsKeyboardFocusable=True` throughout the same observation window. The full suite then passed 29/29.
 
 Deferred reviewer minor: generated `bin/` and `obj/` outputs exist as untracked test build artifacts in the temporary source worktree and are not covered by repository ignore rules. They were not copied as source files or included in the application deployment beyond the intended Release launcher files and dependencies.

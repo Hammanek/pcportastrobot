@@ -29,6 +29,7 @@
     <Reference Include="System.Core" />
     <Reference Include="System.Runtime" />
     <Reference Include="System.Runtime.Extensions" />
+    <Reference Include="WindowsBase" />
     <Reference Include="System.Threading.Tasks" />
     <Reference Include="System.Collections" />
     <Reference Include="System.Collections.Concurrent" />

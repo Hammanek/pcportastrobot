@@ -118,7 +118,11 @@ namespace AstroHybrid.App.ViewModels
         public bool CanProceed
         {
             get => _canProceed;
-            set => SetProperty(ref _canProceed, value);
+            set
+            {
+                if (SetProperty(ref _canProceed, value))
+                    (InstallCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            }
         }
 
         public string ValidationError
