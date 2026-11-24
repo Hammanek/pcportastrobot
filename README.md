@@ -70,12 +70,6 @@ Command line: `AstroHybrid.exe --setup "<dump folder>"` runs setup headless; `--
 - **DLSS Frame Generation:** RTX 40-series or newer (3x / 4x requires RTX 50-series).
 - Frame Generation is active while the game window is focused. Do not combine it with NVIDIA Smooth Motion.
 
-## Known Issues
-
-- Motion controls on Xbox and other non-gyro controllers are not yet functional in-game.
-- Vibration on some third-party Switch Pro controllers is still being tested.
-- With no FPS cap and Frame Generation off, the initial loading screen may stay black for ~35 seconds while assets load (capped starts take ~20 seconds). This is not a hang.
-
 ## Status
 
 Work in progress, personal research project. Not affiliated with or endorsed by Sony Interactive Entertainment, Team ASOBI, or NVIDIA. Astro Bot is a trademark of its owners; NVIDIA, DLSS, and Reflex are trademarks of NVIDIA.
