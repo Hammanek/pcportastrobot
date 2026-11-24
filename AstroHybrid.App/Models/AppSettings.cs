@@ -21,7 +21,7 @@ namespace AstroHybrid.App.Models
         [JsonPropertyName("fullscreen")]
         public bool Fullscreen { get; set; } = true;
 
-        // Use the game's 21:9 render-space patch when the display is ultrawide.
+        // Use the game's ultrawide render-space patch when the display is 21:9 or 32:9.
         [JsonPropertyName("ultrawide")]
         public bool Ultrawide { get; set; } = false;
 
@@ -40,11 +40,43 @@ namespace AstroHybrid.App.Models
         [JsonPropertyName("fgmode")]
         public int FrameGenMode { get; set; } = 0;
 
+        // AMD FSR frame generation (2x, any graphics card; ASTROHYBRID_FSRFG). Off while NVIDIA frame
+        // generation (FrameGenMode) is on; works with any upscaler.
+        [JsonPropertyName("fsrfg")]
+        public bool FsrFrameGen { get; set; } = false;
+
         [JsonPropertyName("lowlatency")]
         public bool LowLatency { get; set; } = false;
 
         [JsonPropertyName("fgtarget")]
         public int FrameGenTarget { get; set; } = 2;
+
+        // "Auto" on the Graphics page: the launcher picks upscaling / frame generation for the selected card
+        // each start (Upscale and FrameGenMode then hold the resolved choice). False in older settings files,
+        // so a choice made before 1.2.8 is kept; setup, Best Settings and Restore Defaults turn them on.
+        // DLSS quality mode (#156): 0 Quality (default), 1 Balanced, 2 Performance, 3 DLAA. Passed to the renderer
+        // as ASTROHYBRID_DLSS_QUALITY; the game's own dynamic resolution still picks the input size.
+        [JsonPropertyName("dlssQuality")]
+        public int DlssQuality { get; set; } = 0;
+
+        // AMD FSR quality preset: controls Astro Bot's dynamic-resolution tier-0 internal render size
+        // before FSR upscaling (0 = PS5 default 1920x1080 .. 5 = Ultra Performance 1024x576).
+        [JsonPropertyName("fsrQuality")]
+        public int FsrQuality { get; set; } = 0;
+
+        // AMD FSR sharpening (RCAS) in percent (0-100 -> ASTROHYBRID_FSR_SHARPNESS 0.00..1.00).
+        [JsonPropertyName("fsrSharpness")]
+        public int FsrSharpness { get; set; } = 0;
+
+        // AMD FSR runtime version preference (0 = auto, 1 = FSR 4, 2 = FSR 3.1, 3 = FSR 2 -> ASTROHYBRID_FSR_VERSION).
+        [JsonPropertyName("fsrVersion")]
+        public int FsrVersion { get; set; } = 0;
+
+        [JsonPropertyName("upscaleAuto")]
+        public bool UpscaleAuto { get; set; } = false;
+
+        [JsonPropertyName("fgAuto")]
+        public bool FrameGenAuto { get; set; } = false;
 
         [JsonPropertyName("pad")]
         public int Controller { get; set; } = 0;
@@ -59,6 +91,25 @@ namespace AstroHybrid.App.Models
 
         [JsonPropertyName("switchboost")]
         public bool SwitchBoost { get; set; } = true;
+
+        // Xbox/generic pads: View/Back tilts with the right stick while held (false, the default since
+        // 1.2.4, #128) or toggles tilt on and off (true, the behaviour before 1.2.4, #146).
+        [JsonPropertyName("tiltToggle")]
+        public bool TiltToggle { get; set; } = false;
+
+        // Right-stick tilt strength in percent of the default 45 degrees at full deflection (25-200, #146).
+        [JsonPropertyName("tiltStrength")]
+        public int TiltStrength { get; set; } = 100;
+
+        // DualSense speaker: the sounds the game plays on the controller's own speaker (#143). Off keeps
+        // them silent (not moved to the PC speakers).
+        [JsonPropertyName("dsSpeaker")]
+        public bool DualSenseSpeaker { get; set; } = true;
+
+        // DualSense adaptive triggers: resistance and vibration in percent of what the game asks for
+        // (0 = off, 100 = as the game asks; #160).
+        [JsonPropertyName("triggerStrength")]
+        public int TriggerStrength { get; set; } = 100;
 
         // Installation settings
         [JsonPropertyName("installPath")]
@@ -83,7 +134,7 @@ namespace AstroHybrid.App.Models
 
         // VSync (Vulkan FIFO presentation) instead of immediate presentation: no tearing.
         [JsonPropertyName("vsync")]
-        public bool VSync { get; set; } = false;
+        public bool VSync { get; set; } = true;
 
         // Graphics card the launcher describes and hands to the game: index into the detected
         // adapters, -1 = automatic (the best card, discrete over integrated) - issue #24.
@@ -117,15 +168,20 @@ namespace AstroHybrid.App.Models
         [JsonPropertyName("triggerState")]
         public bool TriggerState { get; set; } = true;
 
-        // Wireless DualSense features (Bluetooth HID audio/haptics) - issue #34
-        [JsonPropertyName("dsWirelessSpeaker")]
-        public bool DualSenseWirelessSpeaker { get; set; } = true;
-
-        [JsonPropertyName("dsWirelessHaptics")]
-        public bool DualSenseWirelessHaptics { get; set; } = true;
-
         [JsonPropertyName("skipIntro")]
         public bool SkipIntro { get; set; } = false;
+
+        // Async Vulkan staging via GPU timeline semaphores (KYTY_SUBMIT_WAIT_BEFORE_SIGNAL=1).
+        // Null = automatic (enabled on AMD GPUs; off by default on NVIDIA/other GPUs where RTX 50 HAGS can freeze).
+        [JsonPropertyName("asyncVulkanStaging")]
+        public bool? AsyncVulkanStaging { get; set; }
+
+        public bool EffectiveAsyncVulkanStaging(HardwareInfo? hardware)
+        {
+            if (AsyncVulkanStaging.HasValue) return AsyncVulkanStaging.Value;
+            var vendor = hardware?.SelectedGpu?.Vendor ?? "";
+            return string.Equals(vendor, "AMD", StringComparison.OrdinalIgnoreCase);
+        }
 
         // Set by the setup wizard: the main window picks the best settings for this PC once.
         [JsonPropertyName("applyBestOnStart")]
@@ -156,6 +212,76 @@ namespace AstroHybrid.App.Models
         {
             RumblePercent = EffectiveRumblePercent;
             Rumble = RumbleSetting.ToLegacyIndex(RumblePercent);
+        }
+
+        // Clamps out-of-range indices, syncs Ultrawide with 21:9/32:9 size presets, and turns off
+        // hardware-gated NVIDIA options on systems that do not support them.
+        public static readonly (int Width, int Height, string Label, string ShortLabel, int AspectRatio)[] ResolutionPresets =
+        {
+            (1280, 720,  "1280 x 720",         "1280x720",  16),
+            (1600, 900,  "1600 x 900",         "1600x900",  16),
+            (1920, 1080, "1920 x 1080",        "1920x1080", 16),
+            (2560, 1440, "2560 x 1440",        "2560x1440", 16),
+            (2560, 1080, "2560 x 1080 (21:9)", "2560x1080", 21),
+            (3440, 1440, "3440 x 1440 (21:9)", "3440x1440", 21),
+            (5120, 1440, "5120 x 1440 (32:9)", "5120x1440", 32),
+            (3840, 1080, "3840 x 1080 (32:9)", "3840x1080", 32),
+            (5120, 2160, "5120 x 2160 (21:9)", "5120x2160", 21),
+            (3840, 2160, "3840 x 2160 (4K)",   "3840x2160", 16),
+        };
+
+        public static int GetAspectRatio(int size) =>
+            size >= 0 && size < ResolutionPresets.Length ? ResolutionPresets[size].AspectRatio : 16;
+
+        [JsonIgnore]
+        public bool IsUltrawideSize => GetAspectRatio(Size) != 16;
+
+        [JsonIgnore]
+        public bool IsSuperUltrawideSize => GetAspectRatio(Size) == 32;
+
+        // Glitch-free AMD FSR render/output presets (all >= 1920x1080 internal so Astro Bot's
+        // grass/occlusion passes stay intact; 1080p Native avoids the 2432x1368 post-process upscale).
+        public static readonly (string Label, string ShortLabel, int InWidth, int InHeight, int OutWidth, int OutHeight)[] FsrQualityPresets =
+        {
+            ("Default (PS5 — 1920x1080 → 2432x1368)",          "Default 1080p→1368p", 1920, 1080, 2432, 1368),
+            ("1080p Native (1920x1080 → 1920x1080 — faster)",  "1080p Native",        1920, 1080, 1920, 1080),
+            ("Native AA (2432x1368 → 2432x1368 — sharpest)",   "Native AA 1368p",     2432, 1368, 2432, 1368),
+        };
+
+        public static readonly string[] FsrVersionValues = { "auto", "4", "3", "2" };
+
+        public void Sanitize(bool supportsDlss = true, bool supportsFrameGeneration = true, bool supportsReflex = true, int maxFrameGenMultiplier = 4,
+                             bool supportsFsrFrameGen = true)
+        {
+            if (Lighting < 0 || Lighting > 1) Lighting = 0;
+            if (Fps < 0 || Fps > 6) Fps = 0;
+            if (Speed < 0 || Speed > 5) Speed = 0;
+            if (Size < 0 || Size >= ResolutionPresets.Length) Size = 2;
+            if (Overlay < 0 || Overlay > 3) Overlay = 0;
+            if (Upscale < 0 || Upscale > 2) Upscale = 0;   // 0 game's own, 1 NVIDIA DLSS, 2 AMD FSR
+            if (FrameGenMode < 0 || FrameGenMode > 4) FrameGenMode = 0;
+            if (FrameGenTarget < 0 || FrameGenTarget > 6) FrameGenTarget = 2;
+            if (DlssQuality < 0 || DlssQuality > 3) DlssQuality = 0;
+            if (FsrQuality < 0 || FsrQuality >= FsrQualityPresets.Length) FsrQuality = 0;
+            if (FsrSharpness < 0) FsrSharpness = 0;
+            else if (FsrSharpness > 100) FsrSharpness = 100;
+            if (FsrVersion < 0 || FsrVersion >= FsrVersionValues.Length) FsrVersion = 0;
+            if (Controller < 0 || Controller > 4) Controller = 0;
+            if (CpPriority < 0 || CpPriority > 2) CpPriority = 2;
+            if (Priority != "normal" && Priority != "abovenormal" && Priority != "high")
+                Priority = "abovenormal";
+
+            if (IsUltrawideSize) Ultrawide = true;
+            else if (Ultrawide) Size = Size == 9 ? 8 : Size == 3 ? 5 : 4;
+
+            if (!supportsDlss && Upscale == 1) Upscale = 0;
+            // Frame generation is NVIDIA DLSS Frame Generation: it needs DLSS as the upscaler.
+            if (!supportsFrameGeneration || Upscale != 1) FrameGenMode = 0;
+            if (!supportsReflex) LowLatency = false;
+            // Fixed 3x / 4x need a card that can generate that many frames (RTX 50 multi frame generation).
+            if (FrameGenMode >= 3 && FrameGenMode > Math.Max(2, maxFrameGenMultiplier)) FrameGenMode = 2;
+            // AMD FSR frame generation needs its runtime next to the game, and NVIDIA frame generation off.
+            if (!supportsFsrFrameGen || FrameGenMode != 0) FsrFrameGen = false;
         }
     }
 

@@ -192,35 +192,6 @@ namespace AstroHybrid.App.ViewModels
             }
         }
 
-        // Wireless DualSense (Bluetooth HID audio/haptics) - issue #34
-        public bool DualSenseWirelessSpeaker
-        {
-            get => _mainViewModel.Settings.DualSenseWirelessSpeaker;
-            set
-            {
-                if (!Equals(_mainViewModel.Settings.DualSenseWirelessSpeaker, value))
-                {
-                    _mainViewModel.Settings.DualSenseWirelessSpeaker = value;
-                    OnPropertyChanged();
-                    _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.Settings));
-                }
-            }
-        }
-
-        public bool DualSenseWirelessHaptics
-        {
-            get => _mainViewModel.Settings.DualSenseWirelessHaptics;
-            set
-            {
-                if (!Equals(_mainViewModel.Settings.DualSenseWirelessHaptics, value))
-                {
-                    _mainViewModel.Settings.DualSenseWirelessHaptics = value;
-                    OnPropertyChanged();
-                    _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.Settings));
-                }
-            }
-        }
-
         public bool SkipIntro
         {
             get => _mainViewModel.Settings.SkipIntro;
@@ -236,7 +207,28 @@ namespace AstroHybrid.App.ViewModels
         }
 
         // Experimental Features
-        public bool IsExperimentalExpanded { get; set; } = false;
+        public bool IsExperimentalExpanded { get; set; } = true;
+
+        private bool IsAmdSelected =>
+            string.Equals(_mainViewModel.HardwareInfo?.SelectedGpu?.Vendor, "AMD", StringComparison.OrdinalIgnoreCase);
+
+        public bool AsyncVulkanStaging
+        {
+            get => _mainViewModel.Settings.EffectiveAsyncVulkanStaging(_mainViewModel.HardwareInfo);
+            set
+            {
+                if (_mainViewModel.Settings.EffectiveAsyncVulkanStaging(_mainViewModel.HardwareInfo) != value)
+                {
+                    _mainViewModel.Settings.AsyncVulkanStaging = value;
+                    OnPropertyChanged();
+                    _mainViewModel.OnPropertyChanged(nameof(MainWindowViewModel.Settings));
+                }
+            }
+        }
+
+        public string AsyncVulkanStagingNote => IsAmdSelected
+            ? "Enabled by default on AMD GPUs. Moves texture/DMA staging waits to Vulkan timeline semaphores (KYTY_SUBMIT_WAIT_BEFORE_SIGNAL=1), eliminating host submit stalls and improving FPS and load times in heavy worlds."
+            : "Experimental (off by default on non-AMD GPUs): moves texture/DMA staging waits to Vulkan timeline semaphores (KYTY_SUBMIT_WAIT_BEFORE_SIGNAL=1). Warning: can freeze Windows on NVIDIA RTX 50-series GPUs with Hardware-Accelerated GPU Scheduling (HAGS) enabled.";
 
         // Info texts
         public string LightingNote => "Faster lighting uses the NonRT renderer (AstroBot-NonRT.exe) which disables GI probes and some lighting shaders for better performance.";
@@ -256,10 +248,6 @@ namespace AstroHybrid.App.ViewModels
         public string MotionNote => "Enables accelerometer/gyroscope input for shake and tilt moves. Disable if your controller doesn't have motion sensors.";
 
         public string TriggerNote2 => "Enables DualSense trigger effect state reporting. The game ignores L2/R2 without it.";
-
-        public string DualSenseWirelessSpeakerNote => "Routes the DualSense speaker audio over Bluetooth HID. Requires a Bluetooth-connected DualSense; wired controllers use USB audio instead.";
-
-        public string DualSenseWirelessHapticsNote => "Routes DualSense haptic feedback over Bluetooth HID. Requires a Bluetooth-connected DualSense; wired controllers use USB audio instead.";
 
         public string SkipIntroNote => "Skips the opening PlayStation Studios and Team Asobi intro videos (-skipIntro).";
 

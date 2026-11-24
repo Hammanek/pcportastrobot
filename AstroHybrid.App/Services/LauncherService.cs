@@ -1,10 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 using AstroHybrid.App.Models;
+using AstroHybrid.App.Views;
 
 namespace AstroHybrid.App.Services
 {
@@ -17,6 +22,17 @@ namespace AstroHybrid.App.Services
         {
             _rootDirectory = rootDirectory;
             _settingsManager = new SettingsManager(rootDirectory);
+        }
+
+        private void AppendDebugLog(string message)
+        {
+            try
+            {
+                var logPath = Path.Combine(_rootDirectory, "Logs", "astrohybrid-debug.log");
+                Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
+                File.AppendAllText(logPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}\n");
+            }
+            catch { }
         }
 
         public async Task<int> LaunchGameAsync(AppSettings settings, HardwareInfo? hardware = null)
@@ -39,6 +55,17 @@ namespace AstroHybrid.App.Services
 
             // Build environment variables from settings
             var envVars = BuildEnvironmentVariables(settings, hardware);
+
+            if (ShaderPrep.Needed(runHybridPath))
+            {
+                bool proceed = true;
+                var app = Application.Current;
+                if (app?.Dispatcher != null)
+                {
+                    proceed = app.Dispatcher.Invoke(() => ShaderPrepWindow.PrepareBeforePlay(this, envVars));
+                }
+                if (!proceed) return 0;
+            }
 
             var psi = new ProcessStartInfo
             {
@@ -86,6 +113,201 @@ namespace AstroHybrid.App.Services
             process.BeginErrorReadLine();
 
             return await tcs.Task;
+        }
+
+        public async Task<ShaderPrep.Result> PrepareShadersAsync(Dictionary<string, string> variables, IProgress<ShaderPrep.ProgressUpdate>? progress, CancellationToken ct)
+        {
+            var runHybridPath = Path.Combine(_rootDirectory, "Build", "RunHybrid");
+            var exePath = new[] { "AstroBot-NonRT-SoftAssert.exe", "AstroBot-NonRT.exe", "AstroBot.exe" }
+                .Select(name => Path.Combine(runHybridPath, name))
+                .FirstOrDefault(File.Exists);
+            if (exePath == null || !File.Exists(ShaderPrep.ListPath(runHybridPath)))
+                return ShaderPrep.Result.NoList;
+
+            Directory.CreateDirectory(Path.Combine(runHybridPath, "_PipelineCache"));
+            var logsDir = Path.Combine(_rootDirectory, "Logs");
+            Directory.CreateDirectory(logsDir);
+            var prepLogPath = Path.Combine(logsDir, "shader-prep.log");
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = exePath,
+                WorkingDirectory = runHybridPath,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+
+            // Start from Kyty's u59-preset.cmd so shader codegen flags (KYTY_PROGRAM_CACHE,
+            // KYTY_UNIFORM_BUFFERS, KYTY_CB_SHADER_MASK_EXPORTS, etc.) match actual gameplay.
+            foreach (var kvp in ShaderPrep.LoadPresetEnv(runHybridPath))
+            {
+                psi.EnvironmentVariables[kvp.Key] = kvp.Value;
+            }
+            foreach (var kvp in variables)
+            {
+                psi.EnvironmentVariables[kvp.Key] = kvp.Value;
+            }
+
+            psi.EnvironmentVariables["APS5_GPU_ENGINE"] = "kyty";
+            psi.EnvironmentVariables["KYTY_GPU_HOST_MODULE"] = "astrohybrid_host.dll";
+            psi.EnvironmentVariables["KYTY_HANG_WATCHDOG"] = "0";
+            var aliasesPath = Path.Combine(runHybridPath, "app0-aliases.txt");
+            if (File.Exists(aliasesPath))
+            {
+                try
+                {
+                    var aliasLine = File.ReadLines(aliasesPath).FirstOrDefault();
+                    if (!string.IsNullOrWhiteSpace(aliasLine))
+                        psi.EnvironmentVariables["APS5_PATH_ALIASES"] = aliasLine.Trim();
+                }
+                catch { }
+            }
+
+            int prepThreads = Math.Max(2, Math.Min(12, Environment.ProcessorCount - 2));
+            psi.EnvironmentVariables["KYTY_PIPELINE_LIST"] = "1";
+            psi.EnvironmentVariables["KYTY_PIPELINE_LIST_CROSS"] = "1";
+            psi.EnvironmentVariables["KYTY_PIPELINE_LIST_PREPARE"] = "1";
+            psi.EnvironmentVariables["KYTY_SHADER_PRECOMPILE_WAIT"] = "1";
+            psi.EnvironmentVariables["KYTY_PIPELINE_JOURNAL_WAIT"] = "1";
+            psi.EnvironmentVariables["KYTY_SHADER_PRECOMPILE_THREADS"] = prepThreads.ToString();
+            psi.EnvironmentVariables["KYTY_PIPELINE_JOURNAL_THREADS"] = prepThreads.ToString();
+            psi.EnvironmentVariables["KYTY_PIPELINE_CACHE_SAVE_INTERVAL_S"] = "15";
+            psi.EnvironmentVariables["KYTY_PIPELINE_CACHE_SAVE_MIN_NEW"] = "25";
+            psi.EnvironmentVariables["KYTY_PIPELINE_CACHE_SAVE_QUIET_S"] = "0";
+            psi.EnvironmentVariables["ASTROHYBRID_CACHE_TITLE_ID"] = "PPSA21567";
+
+            // Keep upscalers / frame gen off and avoid opening a fullscreen black window over the popup.
+            psi.EnvironmentVariables["ASTROHYBRID_FSR"] = "0";
+            psi.EnvironmentVariables["ASTROHYBRID_FSRFG"] = "0";
+            psi.EnvironmentVariables["ASTROHYBRID_DLSS"] = "0";
+            psi.EnvironmentVariables["ASTROHYBRID_DLSSG"] = "0";
+            psi.EnvironmentVariables["ASTROHYBRID_LOW_LATENCY"] = "0";
+            psi.EnvironmentVariables["KYTY_GPU_FULLSCREEN"] = "0";
+            psi.EnvironmentVariables["KYTY_GPU_WIDTH"] = "320";
+            psi.EnvironmentVariables["KYTY_GPU_HEIGHT"] = "180";
+
+            using var logWriter = new StreamWriter(prepLogPath, false);
+            var logLock = new object();
+            void WritePrepLog(string prefix, string line)
+            {
+                lock (logLock)
+                {
+                    try { logWriter.WriteLine($"{prefix}{line}"); logWriter.Flush(); } catch { }
+                }
+            }
+
+            // astrohybrid_host.dll aborts if Kyty's start_graphics blocks longer than 120s.
+            // Because KYTY_PIPELINE_CACHE_SAVE_INTERVAL_S=15 persists PPSA21567.bin continuously,
+            // we cleanly recycle passes around 95-108s so each pass gets instant driver-cache hits
+            // on already-compiled pipelines until preparation finishes with zero SIGABRT.
+            const int MaxPasses = 8;
+            const int SoftRecycleSeconds = 95;
+            const int HardRecycleSeconds = 108;
+
+            var sawDone = false;
+            var sawReplayDone = false;
+            var sawNoList = false;
+            double highWaterPct = 0.0;
+
+            for (int pass = 1; pass <= MaxPasses && !ct.IsCancellationRequested; pass++)
+            {
+                WritePrepLog("=== ", $"Shader prep pass {pass}/{MaxPasses} ===");
+                using var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
+                var passClock = Stopwatch.StartNew();
+                var passSawProgress = false;
+                var passRecycled = false;
+                var stopTriggered = 0;
+
+                void TriggerStop(int delayMs, bool isRecycle)
+                {
+                    if (Interlocked.Exchange(ref stopTriggered, 1) != 0) return;
+                    if (isRecycle) passRecycled = true;
+                    Task.Run(async () =>
+                    {
+                        if (delayMs > 0) await Task.Delay(delayMs);
+                        try { if (!process.HasExited) process.Kill(); } catch { }
+                    });
+                }
+
+                process.OutputDataReceived += (s, e) =>
+                {
+                    if (string.IsNullOrEmpty(e.Data)) return;
+                    WritePrepLog("", e.Data);
+                    var update = ShaderPrep.ParseProgress(e.Data);
+                    if (update.HasValue)
+                    {
+                        passSawProgress = true;
+                        double pct = update.Value.Percent ?? highWaterPct;
+                        if (pct >= highWaterPct)
+                        {
+                            highWaterPct = pct;
+                            progress?.Report(update.Value);
+                        }
+                    }
+                    if (ShaderPrep.IsDone(e.Data)) sawDone = true;
+                    if (ShaderPrep.IsReplayDone(e.Data)) sawReplayDone = true;
+                    if (ShaderPrep.IsNoList(e.Data)) sawNoList = true;
+
+                    if (!sawReplayDone && !sawDone &&
+                        passClock.Elapsed.TotalSeconds >= SoftRecycleSeconds &&
+                        ShaderPrep.IsCacheSaved(e.Data))
+                    {
+                        WritePrepLog("=== ", $"Recycling prep pass {pass} cleanly after cache save at {passClock.Elapsed.TotalSeconds.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}s ===");
+                        TriggerStop(200, isRecycle: true);
+                    }
+
+                    if (sawReplayDone && ShaderPrep.IsGameStarting(e.Data))
+                    {
+                        TriggerStop(1500, isRecycle: false);
+                    }
+                };
+                process.ErrorDataReceived += (s, e) =>
+                {
+                    if (!string.IsNullOrEmpty(e.Data)) WritePrepLog("[ERR] ", e.Data);
+                };
+
+                if (!process.Start()) return ShaderPrep.Result.Failed;
+                process.BeginOutputReadLine();
+                process.BeginErrorReadLine();
+
+                using var hardCapCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(HardRecycleSeconds), hardCapCts.Token);
+                        if (!sawReplayDone && !sawDone)
+                        {
+                            WritePrepLog("=== ", $"Recycling prep pass {pass} at {HardRecycleSeconds}s safety cap ===");
+                            TriggerStop(0, isRecycle: true);
+                        }
+                    }
+                    catch (OperationCanceledException) { }
+                });
+
+                using (ct.Register(() => TriggerStop(0, isRecycle: false)))
+                {
+                    await Task.Run(() => process.WaitForExit());
+                }
+                hardCapCts.Cancel();
+
+                if (ct.IsCancellationRequested) return ShaderPrep.Result.Cancelled;
+                if (sawNoList) return ShaderPrep.Result.NoList;
+                if (sawDone || sawReplayDone || process.ExitCode == 0)
+                {
+                    progress?.Report(new ShaderPrep.ProgressUpdate(100.0, "Shader cache ready!"));
+                    ShaderPrep.MarkDone(runHybridPath);
+                    return ShaderPrep.Result.Done;
+                }
+                if (!passRecycled && !passSawProgress)
+                {
+                    return ShaderPrep.Result.Failed;
+                }
+            }
+
+            return ShaderPrep.Result.Failed;
         }
 
         public async Task<int> LaunchGameWithDlssAsync(AppSettings settings, HardwareInfo? hardware = null)
@@ -193,9 +415,10 @@ namespace AstroHybrid.App.Services
         {
             var env = new Dictionary<string, string>();
 
-            // Graphics card (issue #24): an explicit choice names the card for the AnyPS5 renderer.
-            // kyty_gpu.dll (Run-AstroHybrid.bat) prefers a discrete card over integrated graphics by
-            // itself, so an automatic choice passes nothing and the renderer keeps that preference.
+            // Graphics card (issue #24): an explicit choice names the card, for kyty_gpu.dll (Kyty patch
+            // 0047) and the AnyPS5 renderer. A name, not an index: this list comes from Windows, whose
+            // order need not be Vulkan's. An automatic choice passes nothing, and kyty_gpu.dll keeps its
+            // own preference (a discrete card over integrated graphics).
             var gpu = hardware?.SelectedGpu;
             if (hardware != null && hardware.SelectedGpuIndex >= 0 && gpu != null)
             {
@@ -208,15 +431,71 @@ namespace AstroHybrid.App.Services
             var features = GameFeatures.Load(runHybrid);
             // Prefer the soft-assert variant so a command-buffer overflow follows the
             // engine's failure path instead of crashing in command_buffer_writer (issue #25).
-            var lightingExes = settings.Ultrawide
-                ? new[] { "AstroBot-NonRT-Ultrawide-SoftAssert.exe", "AstroBot-Ultrawide.exe" }
-                : new[] { "AstroBot-NonRT-SoftAssert.exe", "AstroBot.exe" };
-            if (settings.Lighting >= 0 && settings.Lighting < lightingExes.Length)
+            bool useUltrawide = settings.Ultrawide || settings.IsUltrawideSize;
+            bool useSuperUltrawide = settings.IsSuperUltrawideSize;
+            var candidates = useUltrawide && useSuperUltrawide
+                ? (settings.Lighting == 0
+                    ? new[] { "AstroBot-NonRT-SuperUltrawide-SoftAssert.exe", "AstroBot-NonRT-SuperUltrawide.exe", "AstroBot-SuperUltrawide.exe", "AstroBot-NonRT-SoftAssert.exe", "AstroBot-NonRT.exe", "AstroBot.exe" }
+                    : new[] { "AstroBot-SuperUltrawide.exe", "AstroBot.exe" })
+                : useUltrawide
+                ? (settings.Lighting == 0
+                    ? new[] { "AstroBot-NonRT-Ultrawide-SoftAssert.exe", "AstroBot-NonRT-Ultrawide.exe", "AstroBot-Ultrawide.exe", "AstroBot-NonRT-SoftAssert.exe", "AstroBot-NonRT.exe", "AstroBot.exe" }
+                    : new[] { "AstroBot-Ultrawide.exe", "AstroBot.exe" })
+                : (settings.Lighting == 0
+                    ? new[] { "AstroBot-NonRT-SoftAssert.exe", "AstroBot-NonRT.exe", "AstroBot.exe" }
+                    : new[] { "AstroBot.exe" });
+
+            if (!File.Exists(Path.Combine(runHybrid, candidates[0])))
+                new GameSetup(_rootDirectory).EnsureVariantExecutables();
+
+            // Bigger worker command buffers (#159): an install set up by 1.1.0 - 1.2.5 has 8 MiB, which
+            // ran out in booster_construction. Raised to 16 MiB once per executable; a failure here only
+            // keeps the old size, it never stops the game from starting.
+            try
             {
-                var exe = lightingExes[settings.Lighting];
-                if (settings.Lighting == 0 && !File.Exists(Path.Combine(runHybrid, exe)))
-                    exe = settings.Ultrawide ? "AstroBot-NonRT-Ultrawide.exe" : "AstroBot-NonRT.exe";
-                env["ASTROHYBRID_EXE"] = File.Exists(Path.Combine(runHybrid, exe)) ? exe : "AstroBot.exe";
+                var setup = new GameSetup(_rootDirectory);
+                foreach (var candidate in candidates.Concat(new[] { "AstroBot.exe" }).Distinct())
+                    setup.UpgradeCommandBufferTable(candidate);
+            }
+            catch (Exception ex)
+            {
+                AppendDebugLog($"command buffer upgrade skipped: {ex.Message}");
+            }
+
+            if (settings.Lighting >= 0 && settings.Lighting <= 1)
+            {
+                string chosen = "AstroBot.exe";
+                foreach (var candidate in candidates)
+                {
+                    if (File.Exists(Path.Combine(runHybrid, candidate)))
+                    {
+                        chosen = candidate;
+                        break;
+                    }
+                }
+                env["ASTROHYBRID_EXE"] = chosen;
+
+                // Apply FSR quality tier-0 internal render & output resolution (or restore PS5 default 1920x1080 -> 2432x1368).
+                try
+                {
+                    int targetW = 1920;
+                    int targetH = 1080;
+                    int outW = 2432;
+                    int outH = 1368;
+                    if (settings.Upscale == 2 && settings.FsrQuality >= 0 && settings.FsrQuality < AppSettings.FsrQualityPresets.Length)
+                    {
+                        var fsrPreset = AppSettings.FsrQualityPresets[settings.FsrQuality];
+                        targetW = fsrPreset.InWidth;
+                        targetH = fsrPreset.InHeight;
+                        outW = fsrPreset.OutWidth;
+                        outH = fsrPreset.OutHeight;
+                    }
+                    new GameSetup(_rootDirectory).ApplyRenderResolutionTier0(chosen, targetW, targetH, outW, outH, AppendDebugLog);
+                }
+                catch (Exception ex)
+                {
+                    AppendDebugLog($"FSR resolution tier-0 patch skipped: {ex.Message}");
+                }
             }
 
             // FPS limit
@@ -227,16 +506,16 @@ namespace AstroHybrid.App.Services
             }
 
             // Window size
-            // Indices 0..3 = 16:9, indices 4..5 = 21:9 ultrawide (#58)
-            var sizeValues = new[,] { { 1280, 720 }, { 1600, 900 }, { 1920, 1080 }, { 2560, 1440 }, { 2560, 1080 }, { 3440, 1440 } };
-            if (settings.Size >= 0 && settings.Size < sizeValues.GetLength(0))
+            // Indices 0..3,9 = 16:9 (9 = 4K), indices 4,5,8 = 21:9, indices 6,7 = 32:9 (#58, #98)
+            if (settings.Size >= 0 && settings.Size < AppSettings.ResolutionPresets.Length)
             {
-                int width = sizeValues[settings.Size, 0];
-                int height = sizeValues[settings.Size, 1];
-                if (settings.Ultrawide && settings.Size < 4)
+                var preset = AppSettings.ResolutionPresets[settings.Size];
+                int width = preset.Width;
+                int height = preset.Height;
+                if (settings.Ultrawide && !settings.IsUltrawideSize)
                 {
-                    width = settings.Size == 3 ? 3440 : 2560;
-                    height = settings.Size == 3 ? 1440 : 1080;
+                    width = settings.Size == 9 ? 5120 : settings.Size == 3 ? 3440 : 2560;
+                    height = settings.Size == 9 ? 2160 : settings.Size == 3 ? 1440 : 1080;
                 }
                 env["KYTY_GPU_WIDTH"] = width.ToString();
                 env["KYTY_GPU_HEIGHT"] = height.ToString();
@@ -265,15 +544,40 @@ namespace AstroHybrid.App.Services
 
             // NVIDIA options, as AstroBotLauncher.cs: DLSS and frame generation need the CUDA address
             // window and the NVIDIA runtime files next to the game.
-            if (settings.Upscale != 0 || settings.FrameGenMode != 0)
+            if (settings.Upscale == 1 || settings.FrameGenMode != 0)
             {
                 env["ASTROHYBRID_CUDA_HOLE"] = "1";
                 env["ASTROHYBRID_DLSS_PATH"] = Path.Combine(_rootDirectory, "Build", "RunHybrid");
             }
-            if (settings.Upscale != 0)
+            // AMD FSR (AMD FSR SDK 2.4 runtime next to the game): the renderer picks FSR 4 where the card
+            // supports it, else FSR 3.1, else FSR 2.
+            if (settings.Upscale == 2)
+            {
+                env["ASTROHYBRID_FSR"] = "1";
+                env["ASTROHYBRID_FSR_PATH"] = Path.Combine(_rootDirectory, "Build", "RunHybrid");
+                double sharp = Math.Max(0, Math.Min(100, settings.FsrSharpness)) / 100.0;
+                env["ASTROHYBRID_FSR_SHARPNESS"] = sharp.ToString("0.00", CultureInfo.InvariantCulture);
+                int verIdx = settings.FsrVersion >= 0 && settings.FsrVersion < AppSettings.FsrVersionValues.Length
+                    ? settings.FsrVersion : 0;
+                env["ASTROHYBRID_FSR_VERSION"] = AppSettings.FsrVersionValues[verIdx];
+            }
+            if (settings.Upscale == 1)
             {
                 env["ASTROHYBRID_DLSS"] = "1";
+                var dlssQuality = new[] { "quality", "balanced", "performance", "dlaa" };
+                if (settings.DlssQuality > 0 && settings.DlssQuality < dlssQuality.Length)
+                    env["ASTROHYBRID_DLSS_QUALITY"] = dlssQuality[settings.DlssQuality];
             }
+
+            // AMD FSR frame generation (2x, any graphics card; the same AMD FSR SDK 2.4 loader plus
+            // amd_fidelityfx_framegeneration_vk.dll next to the game). It works with any upscaler and is the
+            // other frame generator: off while NVIDIA frame generation is on. The game's own FPS limit stays
+            // as set; the screen shows twice that. Always written, so a value inherited from the environment
+            // never overrides the launcher's choice.
+            bool fsrFrameGen = settings.FsrFrameGen && settings.FrameGenMode == 0 && FsrFrameGenRuntimeAvailable(_rootDirectory);
+            env["ASTROHYBRID_FSRFG"] = fsrFrameGen ? "1" : "0";
+            if (fsrFrameGen)
+                env["ASTROHYBRID_FSR_PATH"] = Path.Combine(_rootDirectory, "Build", "RunHybrid");
 
             // Frame generation plan (AstroBotLauncher.FrameGenPlan): the game is never capped below 30.
             // Auto with a target starts at 2x with the game capped at half the target and lets the game
@@ -313,10 +617,6 @@ namespace AstroHybrid.App.Services
             env["ASTROHYBRID_RUMBLE_SCALE"] = rumblePercent.ToString();
             env["ASTROHYBRID_RUMBLE_SWITCH_FLOOR"] = RumbleSetting.SwitchFloor(rumblePercent, settings.SwitchBoost).ToString();
 
-            // Wireless DualSense features (Bluetooth HID audio/haptics) - issue #34
-            env["ASTROHYBRID_DS_WIRELESS_SPEAKER"] = settings.DualSenseWirelessSpeaker ? "1" : "0";
-            env["ASTROHYBRID_DS_WIRELESS_HAPTICS"] = settings.DualSenseWirelessHaptics ? "1" : "0";
-
             // Window title
             env["ASTROHYBRID_WINDOW_TITLE"] = "Astro Bot";
 
@@ -324,8 +624,10 @@ namespace AstroHybrid.App.Services
             int language = settings.Language >= 0 && settings.Language <= 30 ? settings.Language : WindowsLanguage();
             env["ANYPS5_LANGUAGE"] = language.ToString();
 
-            // VSync: Vulkan FIFO presentation (the default is immediate presentation; skipped when DLSS Frame Generation is active).
-            if (settings.VSync && settings.FrameGenMode == 0) env["KYTY_GPU_PRESENT_MODE"] = "Fifo";
+            // VSync: Vulkan FIFO presentation (the default is immediate presentation). It also applies with DLSS
+            // Frame Generation: the generated frames go through the same swapchain, and forcing VSync in the
+            // NVIDIA driver (which only changes the present mode) removes the tearing there too (#15).
+            if (settings.VSync) env["KYTY_GPU_PRESENT_MODE"] = "Fifo";
 
             // Advanced page: the variables Run-AstroHybrid.bat reads (it keeps its defaults when unset).
             if (settings.HangWatchdog) env["ASTROHYBRID_HANG_WATCHDOG"] = "1";
@@ -336,15 +638,48 @@ namespace AstroHybrid.App.Services
                 env["ASTROHYBRID_PRIORITY"] = settings.Priority;
             if (settings.CpPriority == 1 || settings.CpPriority == 2) env["KYTY_CP_PRIORITY"] = settings.CpPriority.ToString();
             env["ASTROHYBRID_PAD_MOTION"] = settings.MotionControls ? "1" : "0";
+            // Right-stick tilt on Xbox/generic pads: toggle instead of hold, and its strength (#146).
+            if (settings.TiltToggle) env["ASTROHYBRID_TILT_TOGGLE"] = "1";
+            env["ASTROHYBRID_TILT_STRENGTH"] = Math.Max(25, Math.Min(200, settings.TiltStrength)).ToString();
+            // DualSense adaptive triggers: resistance and vibration in percent, 0 = off (#160).
+            env["ASTROHYBRID_TRIGGER_STRENGTH"] = Math.Max(0, Math.Min(100, settings.TriggerStrength)).ToString();
+            // DualSense speaker off: the controller speaker's sounds are dropped, wired or Bluetooth (#143).
+            if (!settings.DualSenseSpeaker)
+            {
+                env["ASTROHYBRID_DS_SPEAKER"] = "0";
+                env["ASTROHYBRID_DS_WIRELESS_SPEAKER"] = "0";
+            }
             if (!settings.TriggerState) env["APS5_PAD_TRIGGER_STATE"] = "0";
             if (settings.SkipIntro) env["ASTROHYBRID_SKIP_INTRO"] = "1";
+            if (settings.EffectiveAsyncVulkanStaging(hardware)) env["KYTY_SUBMIT_WAIT_BEFORE_SIGNAL"] = "1";
 
-            // Cloth/blanket/bubble stability (#30, #35): keep commit epoch fast path off and enable buffer range fixes.
-            env["ASTROHYBRID_COMMIT_EPOCH_FASTPATH"] = "0";
+            // Cloth/blanket/bubble stability (#30, #35): the commit epoch fast path only for read-only
+            // bindings (writable ones stay on the full check), plus the buffer range fixes.
+            env["ASTROHYBRID_COMMIT_EPOCH_FASTPATH"] = "read";
             env["KYTY_BUFFER_RANGE_FIXES"] = "1";
             env["APS5_SAVEDATA_TRANSFER_FALLBACK"] = "1";
 
+            // Shader/pipeline cache runtime tuning: scale startup replay across CPU cores and
+            // reduce unnecessary periodic cache re-saves mid-gameplay.
+            if (settings.ShaderCache)
+            {
+                int replayThreads = Math.Max(2, Math.Min(8, Environment.ProcessorCount / 2));
+                env["KYTY_SHADER_PRECOMPILE_THREADS"] = replayThreads.ToString();
+                env["KYTY_PIPELINE_JOURNAL_THREADS"] = replayThreads.ToString();
+                env["KYTY_PIPELINE_CACHE_SAVE_INTERVAL_S"] = "300";
+                env["KYTY_PIPELINE_CACHE_SAVE_MIN_NEW"] = "32";
+            }
+
             return env;
+        }
+
+        // AMD's FSR frame generation runtime next to the game (the loader the FSR upscaler uses as well, and
+        // the frame generation DLL): the FSR frame generation option is offered only with both.
+        public static bool FsrFrameGenRuntimeAvailable(string rootDirectory)
+        {
+            var folder = Path.Combine(rootDirectory, "Build", "RunHybrid");
+            return File.Exists(Path.Combine(folder, "amd_fidelityfx_loader_vk.dll")) &&
+                   File.Exists(Path.Combine(folder, "amd_fidelityfx_framegeneration_vk.dll"));
         }
 
         // The renderer selects a card by name (ANYPS5_GPU, a case-insensitive substring of the Vulkan
