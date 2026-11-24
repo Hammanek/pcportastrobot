@@ -276,6 +276,7 @@ namespace AstroHybrid.App.Services
             };
             StateChanged?.Invoke(state);
 
+            var rollbackJournal = new System.Collections.Generic.List<System.Tuple<string, string?>>();
             try
             {
                 var tempFile = Path.Combine(_tempDirectory, updateInfo.FileName);
@@ -310,8 +311,18 @@ namespace AstroHybrid.App.Services
                     throw new InvalidOperationException("Launcher executable not found in update package");
                 }
 
-                // Copy new launcher files to application directory
-                await CopyUpdateFilesAsync(extractDir);
+                // Copy new launcher files to application directory, journaling for rollback
+                await CopyUpdateFilesAsync(extractDir, rollbackJournal);
+
+                // Best-effort cleanup of the moved-aside originals; files still loaded by this
+                // running process stay locked and are left on disk - no later-run cleanup exists.
+                foreach (var entry in rollbackJournal)
+                {
+                    if (entry.Item2 != null)
+                    {
+                        try { File.Delete(entry.Item2); } catch { }
+                    }
+                }
 
                 state.DownloadStatus = "Update installed successfully";
                 state.IsInstalling = false;
@@ -334,7 +345,16 @@ namespace AstroHybrid.App.Services
                 state.ErrorMessage = ex.Message;
                 StateChanged?.Invoke(state);
 
-                // Try to restore from backup
+                // Undo the partial copy precisely (added files removed, moved-aside originals
+                // moved back), then restore from backup as the pre-existing safety net.
+                // Rollback failures are surfaced on the error state, never masking the
+                // original install error, and no restoration is implied when incomplete.
+                var rollbackFailures = RollbackCopiedFiles(rollbackJournal);
+                if (rollbackFailures.Count > 0)
+                {
+                    state.ErrorMessage = ex.Message + " (rollback incomplete: " + rollbackFailures.Count + " file(s) could not be restored)";
+                    StateChanged?.Invoke(state);
+                }
                 await RestoreFromBackupAsync();
                 return false;
             }
@@ -379,15 +399,15 @@ namespace AstroHybrid.App.Services
                 {
                     foreach (var file in Directory.GetFiles(latestBackup, "*.exe"))
                     {
-                        File.Copy(file, Path.Combine(appDir, Path.GetFileName(file)), true);
+                        ReplaceFile(file, Path.Combine(appDir, Path.GetFileName(file)));
                     }
                     foreach (var file in Directory.GetFiles(latestBackup, "*.dll"))
                     {
-                        File.Copy(file, Path.Combine(appDir, Path.GetFileName(file)), true);
+                        ReplaceFile(file, Path.Combine(appDir, Path.GetFileName(file)));
                     }
                     foreach (var file in Directory.GetFiles(latestBackup, "*.config"))
                     {
-                        File.Copy(file, Path.Combine(appDir, Path.GetFileName(file)), true);
+                        ReplaceFile(file, Path.Combine(appDir, Path.GetFileName(file)));
                     }
                 }
             }
@@ -409,7 +429,67 @@ namespace AstroHybrid.App.Services
             return null;
         }
 
-        private async Task CopyUpdateFilesAsync(string extractDir)
+        // Windows locks the files of the running process for overwrite and delete, but a
+        // rename within the same volume still succeeds. Move an existing destination aside
+        // before copying so self-updates can replace the running launcher exe and its loaded
+        // DLLs; without this, File.Copy throws IOException on the locked file, InstallUpdateAsync
+        // fails, and RestoreFromBackupAsync hits the same lock trying to copy the backup back.
+        // Returns the path the previous content of destFile was moved to, or null when
+        // destFile did not exist (the copied file was newly added).
+        private static string? ReplaceFile(string sourceFile, string destFile,
+            System.Collections.Generic.List<System.Tuple<string, string?>>? rollbackJournal = null)
+        {
+            string? movedAside = null;
+            if (File.Exists(destFile))
+            {
+                var oldFile = destFile + ".old";
+                try { if (File.Exists(oldFile)) File.Delete(oldFile); } catch { }
+                try
+                {
+                    File.Move(destFile, oldFile);
+                    movedAside = oldFile;
+                }
+                catch
+                {
+                    // A stale locked .old blocked the rename; fall back to a unique name.
+                    movedAside = destFile + ".old." + DateTime.Now.Ticks.ToString("x");
+                    File.Move(destFile, movedAside);
+                }
+            }
+            // Journal BEFORE the copy: if the copy itself throws after a successful
+            // rename (AV transient, disk full, ...), the original is still restorable
+            // from its moved-aside path, and a partially written new file removed.
+            rollbackJournal?.Add(System.Tuple.Create(destFile, movedAside));
+            File.Copy(sourceFile, destFile, true);
+            return movedAside;
+        }
+
+        // Precise undo for a failed install: delete every file the copy added and move every
+        // moved-aside original back, in reverse copy order. The running process's files can be
+        // renamed but not deleted; the new copies are not locked, so this restores them.
+        // Best-effort undo; every file it cannot restore is reported so an incomplete
+        // rollback is visible instead of silently lost. Never masks the original error.
+        private static System.Collections.Generic.List<string> RollbackCopiedFiles(System.Collections.Generic.List<System.Tuple<string, string?>> journal)
+        {
+            var failures = new System.Collections.Generic.List<string>();
+            for (int i = journal.Count - 1; i >= 0; i--)
+            {
+                var dest = journal[i].Item1;
+                var movedAside = journal[i].Item2;
+                try
+                {
+                    if (File.Exists(dest)) File.Delete(dest);
+                    if (movedAside != null && File.Exists(movedAside)) File.Move(movedAside, dest);
+                }
+                catch
+                {
+                    failures.Add(dest);
+                }
+            }
+            return failures;
+        }
+
+        private async Task CopyUpdateFilesAsync(string extractDir, System.Collections.Generic.List<System.Tuple<string, string?>>? rollbackJournal = null)
         {
             var appDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
             if (appDir == null) throw new InvalidOperationException("Cannot determine application directory");
@@ -426,7 +506,7 @@ namespace AstroHybrid.App.Services
                     Directory.CreateDirectory(destDir);
                 }
 
-                File.Copy(file, destFile, true);
+                ReplaceFile(file, destFile, rollbackJournal);
             }
 
             await Task.CompletedTask;
