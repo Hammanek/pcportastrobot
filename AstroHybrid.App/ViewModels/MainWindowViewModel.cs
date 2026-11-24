@@ -304,8 +304,8 @@ namespace AstroHybrid.App.ViewModels
                 IsLoading = false;
             }
 
-            // Auto-check for updates in background (after UI is responsive)
-            if (Settings.AutoCheckUpdates)
+            // Auto-check for updates in background (after UI is responsive), never when launched by RecompLauncher
+            if (Settings.AutoCheckUpdates && Environment.GetEnvironmentVariable("RECOMPLAUNCHER") != "1")
             {
                 _ = Task.Run(async () =>
                 {
@@ -599,12 +599,12 @@ namespace AstroHybrid.App.ViewModels
 
         private async Task ChangeInstallLocationAsync()
         {
-            using (var dialog = new System.Windows.Forms.FolderBrowserDialog
+            var dialog = new System.Windows.Forms.FolderBrowserDialog
             {
                 Description = "Select new installation location",
                 ShowNewFolderButton = true
-            })
-            {
+            };
+
             if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
             {
                 IsLoading = true;
@@ -624,7 +624,6 @@ namespace AstroHybrid.App.ViewModels
                 {
                     IsLoading = false;
                 }
-            }
             }
         }
 

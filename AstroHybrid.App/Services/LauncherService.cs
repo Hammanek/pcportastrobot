@@ -48,6 +48,9 @@ namespace AstroHybrid.App.Services
                 throw new FileNotFoundException("AstroBot.exe not found in RunHybrid", runHybridPath);
             }
 
+            // Auto-heal any 01.007.000 AstroBot-NonRT*.exe created by v1.2.15-1.2.22 with the shifted .ahpat header.
+            Patch0107.RepairCorruptedHeaderIfNeeded(runHybridPath);
+
             // Save settings before launch
             settings.LastLaunched = DateTime.Now;
             _settingsManager.Save(settings);
@@ -132,6 +135,35 @@ namespace AstroHybrid.App.Services
                 RedirectStandardOutput = true,
                 RedirectStandardError = true
             };
+            // Apply the same runtime preset as Run-AstroHybrid.bat (u59-preset.json) so precompiled
+            // shaders and pipelines match the gameplay SPIR-V codegen hash (issue #254).
+            var presetPath = Path.Combine(runHybridPath, "u59-preset.json");
+            if (File.Exists(presetPath))
+            {
+                try
+                {
+                    var preset = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(presetPath));
+                    if (preset != null)
+                    {
+                        foreach (var kvp in preset)
+                        {
+                            if (!psi.EnvironmentVariables.ContainsKey(kvp.Key))
+                                psi.EnvironmentVariables[kvp.Key] = kvp.Value;
+                        }
+                    }
+                }
+                catch { }
+            }
+            var aliasesPath = Path.Combine(runHybridPath, "app0-aliases.txt");
+            if (!psi.EnvironmentVariables.ContainsKey("APS5_PATH_ALIASES") && File.Exists(aliasesPath))
+            {
+                try
+                {
+                    var aliases = File.ReadAllText(aliasesPath).Trim();
+                    if (!string.IsNullOrEmpty(aliases)) psi.EnvironmentVariables["APS5_PATH_ALIASES"] = aliases;
+                }
+                catch { }
+            }
             foreach (var kvp in variables)
             {
                 psi.EnvironmentVariables[kvp.Key] = kvp.Value;
@@ -167,7 +199,7 @@ namespace AstroHybrid.App.Services
             }
             if (ct.IsCancellationRequested) return ShaderPrep.Result.Cancelled;
             if (sawNoList) return ShaderPrep.Result.NoList;
-            if (process.ExitCode == 0 || sawDone)
+            if (sawDone)
             {
                 ShaderPrep.MarkDone(runHybridPath);
                 return ShaderPrep.Result.Done;
@@ -188,6 +220,9 @@ namespace AstroHybrid.App.Services
             {
                 throw new FileNotFoundException("AstroBot.exe not found in RunHybrid", runHybridPath);
             }
+
+            // Auto-heal any 01.007.000 AstroBot-NonRT*.exe created by v1.2.15-1.2.22 with the shifted .ahpat header.
+            Patch0107.RepairCorruptedHeaderIfNeeded(runHybridPath);
 
             settings.LastLaunched = DateTime.Now;
             _settingsManager.Save(settings);
@@ -238,6 +273,9 @@ namespace AstroHybrid.App.Services
             {
                 throw new FileNotFoundException("AstroBot.exe not found in RunHybrid", runHybridPath);
             }
+
+            // Auto-heal any 01.007.000 AstroBot-NonRT*.exe created by v1.2.15-1.2.22 with the shifted .ahpat header.
+            Patch0107.RepairCorruptedHeaderIfNeeded(runHybridPath);
 
             settings.LastLaunched = DateTime.Now;
             _settingsManager.Save(settings);
@@ -368,8 +406,8 @@ namespace AstroHybrid.App.Services
             env["KYTY_GPU_FULLSCREEN"] = settings.Fullscreen ? "1" : "0";
 
             // Game speed
-            // Always real time, where the game version is known: it writes one global at a fixed address.
-            env["ASTROHYBRID_GAME_SPEED"] = features == null || features.RealTimeSpeed ? "1" : "0";
+            // Real-time game speed when enabled and supported by this game version.
+            env["ASTROHYBRID_GAME_SPEED"] = (settings.RealSpeed && (features == null || features.RealTimeSpeed)) ? "1" : "0";
             if (features != null && features.GameStepAddress != 0)
                 env["ASTROHYBRID_GAME_STEP_ADDR"] = "0x" + features.GameStepAddress.ToString("x");
             var speedValues = new[] { "100", "95", "90", "85", "80", "75" };
@@ -437,10 +475,11 @@ namespace AstroHybrid.App.Services
                 env["ASTROHYBRID_FPS_LIMIT"] = limit == 0 ? "unlimited" : limit.ToString();
             }
 
-            // NVIDIA Reflex: pass the setting both ways. Run-AstroHybrid-DLSS.bat turns low latency
-            // on whenever the variable is unset, so writing only "1" made an off choice come back on
-            // for every DLSS / Frame Generation launch; the bat documents 0 as the off value.
-            env["ASTROHYBRID_LOW_LATENCY"] = settings.LowLatency ? "1" : "0";
+            // NVIDIA Reflex
+            if (settings.LowLatency)
+            {
+                env["ASTROHYBRID_LOW_LATENCY"] = "1";
+            }
 
             // Controller settings
             var padValues = new[] { "auto", "ps", "xbox", "switch", "generic" };
