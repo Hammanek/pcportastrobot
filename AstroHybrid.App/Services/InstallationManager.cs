@@ -304,7 +304,7 @@ namespace AstroHybrid.App.Services
             var settings = _settingsManager.Load();
             if (string.IsNullOrEmpty(settings.GameDumpPath))
             {
-                throw new InvalidOperationException("No game dump folder is saved. Run the setup again from a fresh download, or set it with --setup.");
+                throw new InvalidOperationException("No game dump folder or ZArchive is saved. Run the setup again from a fresh download, or set it with --setup.");
             }
             var setup = new GameSetup(_rootDirectory);
             if (!setup.IsReleaseLayout)
@@ -336,14 +336,16 @@ namespace AstroHybrid.App.Services
         // feature file); the runtime stays so setup can run again. Links are removed, never followed into the dump.
         public async Task UninstallAsync(bool keepGameDump = true)
         {
+            var settings = _settingsManager.Load();
             await Task.Run(() =>
             {
                 var installPath = Path.Combine(_rootDirectory, "Build", "RunHybrid");
+                GameSetup.DeleteTree(Path.Combine(_rootDirectory, "Build", "ZarSource"));
                 if (!Directory.Exists(installPath)) return;
                 GameSetup.DeleteTree(Path.Combine(installPath, "app0"));
-                // Delete only the generated sibling entry (hard link, symlink or copy), never the source path
-                // saved in settings. File.Delete also handles a dangling file symlink and a missing archive.
-                File.Delete(Path.Combine(installPath, "app0.zar"));
+                // Delete only the generated sibling entry, never a standalone source that is the same path.
+                var runtimeArchive = Path.Combine(installPath, "app0.zar");
+                if (!GameSource.SamePath(settings.GameDumpPath, runtimeArchive)) File.Delete(runtimeArchive);
                 foreach (var file in Directory.GetFiles(installPath, "AstroBot*.exe").Concat(Directory.GetFiles(installPath, "AstroBot*.json")))
                 {
                     File.Delete(file);
@@ -352,7 +354,6 @@ namespace AstroHybrid.App.Services
                 if (File.Exists(features)) File.Delete(features);
             });
 
-            var settings = _settingsManager.Load();
             settings.FirstRunComplete = false;
             settings.InstallPath = null;
             settings.InstallationManifest = null;

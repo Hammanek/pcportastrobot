@@ -474,8 +474,7 @@ namespace AstroHybrid.App.ViewModels
             if (problem == null)
                 return true;
 
-            bool dumpFound = !string.IsNullOrEmpty(Settings.GameDumpPath) &&
-                             System.IO.File.Exists(System.IO.Path.Combine(Settings.GameDumpPath, "eboot.bin"));
+            bool dumpFound = GameSource.Exists(Settings.GameDumpPath);
             var message = $"Astro Bot can't start: {problem}.\n\n" +
                           (dumpFound
                               ? "This usually means the game links are out of date. Repair the installation now?"
