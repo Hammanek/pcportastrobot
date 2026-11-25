@@ -143,8 +143,8 @@ namespace AstroHybrid.App.Services
                                 return match.Value;
                             }
                             // A match ending at the buffer boundary may be truncated; extend it with the next chunk.
-                            // u59- plus up to 80 suffix characters needs 83 overlap characters across chunks.
-                            overlap = text.Substring(Math.Max(0, text.Length - 83));
+                            // A maximum 84-character match can end at the boundary; retain all of it for the next chunk.
+                            overlap = text.Substring(Math.Max(0, text.Length - 84));
                         }
                     }
 

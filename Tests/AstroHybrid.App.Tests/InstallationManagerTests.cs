@@ -43,6 +43,20 @@ namespace AstroHybrid.App.Tests
             Assert.Equal(marker, InstallationManager.ReadKytyVersion(_root));
         }
 
+        [Fact]
+        public void MaximumLengthMarkerEndingAtNonfinalChunkBoundaryIsNotTruncated()
+        {
+            string marker = "u59-" + new string('y', 80);
+            var data = new byte[128 * 1024];
+            byte[] markerBytes = Encoding.ASCII.GetBytes(marker);
+            int markerOffset = 64 * 1024 - markerBytes.Length;
+            Buffer.BlockCopy(markerBytes, 0, data, markerOffset, markerBytes.Length);
+            string dll = Path.Combine(_root, "Build", "RunHybrid", "kyty_gpu.dll");
+            File.WriteAllBytes(dll, data);
+
+            Assert.Equal(marker, InstallationManager.ReadKytyVersion(_root));
+        }
+
         public void Dispose()
         {
             if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
