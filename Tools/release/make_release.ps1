@@ -23,6 +23,8 @@ Get-ChildItem $app -File | Where-Object { $_.Extension -in '.exe', '.dll' } | Co
 $config = Join-Path $root 'AstroHybrid.App\obj\Release\AstroHybrid.exe.config'
 if (-not (Select-String -Path $config -Pattern 'bindingRedirect' -Quiet)) { throw 'generated config has no binding redirects' }
 Copy-Item $config (Join-Path $stage 'AstroHybrid.exe.config')
+# Reject stale dependency DLLs before they reach a release. Package upgrades can otherwise leave the old copies in bin\Release.
+& (Join-Path $root 'Tests\test_managed_dependencies.ps1') -AppDir $stage
 Copy-Item (Join-Path $root 'Run-AstroHybrid.bat') $stage
 # RecompLauncher reads it from the top of the zip, next to AstroHybrid.exe.
 Copy-Item (Join-Path $root 'recomplauncher.json') $stage
