@@ -6,13 +6,15 @@
 #
 # Usage: Tools/linux/build-kyty.sh [build-dir]
 #
-# PGO + ThinLTO by default (the Windows release has both): with Tools/linux/pgo/*.profdata the
-# build is ~30% faster on the command-processor thread (Sky Garden 38-39 vs 28-32 fps, 2026-11-24).
+# PGO + ThinLTO by default (the Windows release has both): with Tools/linux/pgo/*.proftext the
+# build is ~20% faster on the command-processor thread (Sky Garden 38-39 vs 31-32 fps, 2026-11-24).
+# Profiles are kept in llvm-profdata's text format, which any LLVM version reads; the build
+# converts it with llvm-profdata (LLVM_PROFDATA, same LLVM version as the compiler).
 #   KYTY_PGO=0          plain -O3 build
 #   KYTY_PGO=generate   instrumented build; run it with KYTY_PGO_FILE=<file.profraw> (written every
 #                       10 s, Tools/linux/pgo/pgo_dump.cpp), then
-#                       llvm-profdata merge -o Tools/linux/pgo/<name>.profdata <file.profraw>
-#   KYTY_PGO_PROFILE    profile to use (default: newest Tools/linux/pgo/*.profdata)
+#                       llvm-profdata merge --text -o Tools/linux/pgo/<name>.proftext <file.profraw>
+#   KYTY_PGO_PROFILE    profile to use (.proftext or .profdata; default: last Tools/linux/pgo/*.proftext by name)
 # A profile matches the source it was recorded with; after big Kyty changes record a new one.
 set -euo pipefail
 
@@ -35,7 +37,20 @@ if [ "${KYTY_PGO:-1}" = generate ]; then
   "$CXX" -c -fPIC -O2 "$ROOT/Tools/linux/pgo/pgo_dump.cpp" -o "$BUILD/pgo_dump.o"
   EXTRA_OBJS="$BUILD/pgo_dump.o"
 elif [ "${KYTY_PGO:-1}" != 0 ]; then
-  PROFILE=${KYTY_PGO_PROFILE:-$(ls -t "$ROOT"/Tools/linux/pgo/*.profdata 2>/dev/null | head -1)}
+  PROFILE=${KYTY_PGO_PROFILE:-$(ls "$ROOT"/Tools/linux/pgo/*.proftext 2>/dev/null | tail -1)}
+  PROFDATA=${LLVM_PROFDATA:-llvm-profdata}
+  if [ -n "$PROFILE" ] && [ "${PROFILE##*.}" = proftext ]; then
+    # Indexed profiles are version-specific (an LLVM 23 file is unreadable by clang 18): convert here.
+    # The output is named after the profile so a new profile changes the flags and rebuilds.
+    mkdir -p "$BUILD"
+    INDEXED="$BUILD/$(basename "${PROFILE%.*}").profdata"
+    if command -v "$PROFDATA" >/dev/null && "$PROFDATA" merge -o "$INDEXED" "$PROFILE"; then
+      PROFILE=$INDEXED
+    else
+      echo "warning: $PROFDATA could not convert $PROFILE; building without PGO" >&2
+      PROFILE=
+    fi
+  fi
   if [ -n "$PROFILE" ]; then
     PGO_ARGS=(-DKYTY_PGO_GENERATE=OFF "-DKYTY_PGO_USE=$PROFILE" -DKYTY_EMULATOR_IPO=ON -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld)
     echo "== PGO + ThinLTO with $PROFILE"
