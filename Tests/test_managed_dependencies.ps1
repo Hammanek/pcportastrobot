@@ -26,15 +26,17 @@ foreach ($requiredFile in $exe, $configPath) {
 
 $files = @(Get-Item -LiteralPath $exe) + @(Get-ChildItem -LiteralPath $AppDir -Filter '*.dll' -File)
 $identities = @{}
+$badImages = @{}
 $assemblies = @()
 foreach ($file in $files) {
     try {
-        $identity = [Reflection.AssemblyName]::GetAssemblyName($file.FullName)
-        # Byte loading leaves no file mapping behind, so a rebuild or repeated release can replace these DLLs.
-        $assembly = [Reflection.Assembly]::ReflectionOnlyLoad([IO.File]::ReadAllBytes($file.FullName))
+        # The isolated child process releases path mappings when it exits; avoid a second full-file byte copy.
+        $assembly = [Reflection.Assembly]::ReflectionOnlyLoadFrom($file.FullName)
+        $identity = $assembly.GetName()
     }
     catch [BadImageFormatException] {
         if ($file.Extension -ieq '.exe') { throw }
+        $badImages[$file.BaseName] = $file
         continue
     }
     if ($identities.ContainsKey($identity.Name)) {
@@ -55,6 +57,13 @@ foreach ($node in $config.SelectNodes('//asm:dependentAssembly', $namespaces)) {
     $redirectNodes = @($node.SelectNodes('asm:bindingRedirect', $namespaces))
     if (($null -eq $identityNode) -or ($redirectNodes.Count -eq 0)) { continue }
     $name = $identityNode.GetAttribute('name')
+    # Scoped redirects need target-specific evaluation. Reject them until supported instead of accepting an invalid release.
+    if ($identityNode.GetAttribute('processorArchitecture')) {
+        throw "Processor-architecture-scoped binding redirects are not supported by this audit: $name"
+    }
+    if ($node.ParentNode.GetAttribute('appliesTo')) {
+        throw "Runtime-scoped binding redirects are not supported by this audit: $name"
+    }
     foreach ($redirectNode in $redirectNodes) {
         $versions = $redirectNode.GetAttribute('oldVersion').Split('-')
         $redirect = [PSCustomObject]@{
@@ -72,7 +81,13 @@ $checkedReferences = 0
 $failures = @()
 foreach ($assembly in $assemblies) {
     foreach ($reference in $assembly.GetReferencedAssemblies()) {
-        if (-not $identities.ContainsKey($reference.Name)) { continue }
+        if (-not $identities.ContainsKey($reference.Name)) {
+            if ($badImages.ContainsKey($reference.Name)) {
+                $failures += "$($assembly.GetName().Name) requires $($reference.Name) $($reference.Version), " +
+                    "but $($badImages[$reference.Name].Name) is not a valid managed assembly."
+            }
+            continue
+        }
         $checkedReferences++
         $installed = $identities[$reference.Name]
         $referenceToken = (($reference.GetPublicKeyToken() | ForEach-Object { $_.ToString('x2') }) -join '')

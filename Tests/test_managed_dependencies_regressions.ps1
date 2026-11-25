@@ -83,6 +83,32 @@ public sealed class UnsignedMemoryFixture { }
     Assert-Result ($result.ExitCode -ne 0) 'An installed public key token mismatch is rejected' $result.Text
     Assert-Result ($result.Text -match 'public key token') 'Token mismatch diagnostics identify the identity problem' $result.Text
 
+    $badImage = Copy-AppFixture 'bad-image'
+    Set-Content -LiteralPath (Join-Path $badImage 'System.Memory.dll') -Value ([byte[]](0x4D, 0x5A, 0, 0)) -Encoding Byte
+    $result = Invoke-Audit $badImage
+    Assert-Result ($result.ExitCode -ne 0 -and $result.Text -match 'System.Memory') 'A required managed DLL with a bad image is rejected' $result.Text
+
+    $architecture = Copy-AppFixture 'architecture-scoped-redirect'
+    $configPath = Join-Path $architecture 'AstroHybrid.exe.config'
+    [xml]$config = Get-Content -LiteralPath $configPath
+    $namespaces = New-Object Xml.XmlNamespaceManager($config.NameTable)
+    $namespaces.AddNamespace('asm', 'urn:schemas-microsoft-com:asm.v1')
+    $identity = $config.SelectSingleNode("//asm:assemblyIdentity[@name='System.Memory']", $namespaces)
+    $identity.SetAttribute('processorArchitecture', 'x86')
+    $config.Save($configPath)
+    $result = Invoke-Audit $architecture
+    Assert-Result ($result.ExitCode -ne 0) 'A processor-architecture-scoped redirect fails closed' $result.Text
+
+    $runtime = Copy-AppFixture 'runtime-scoped-redirect'
+    $configPath = Join-Path $runtime 'AstroHybrid.exe.config'
+    [xml]$config = Get-Content -LiteralPath $configPath
+    $dependent = $config.SelectSingleNode("//asm:dependentAssembly[asm:assemblyIdentity[@name='System.Memory']]", $namespaces)
+    $binding = $dependent.ParentNode
+    $binding.SetAttribute('appliesTo', 'v3.5')
+    $config.Save($configPath)
+    $result = Invoke-Audit $runtime
+    Assert-Result ($result.ExitCode -ne 0) 'A runtime-scoped redirect fails closed' $result.Text
+
     $continuedAfterFailure = $false
     try {
         & $audit -AppDir (Join-Path $tempRoot 'does-not-exist') | Out-Null
