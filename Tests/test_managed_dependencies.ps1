@@ -71,6 +71,7 @@ foreach ($node in $config.SelectNodes('//asm:dependentAssembly', $namespaces)) {
             Maximum = [version]$versions[-1]
             NewVersion = [version]$redirectNode.GetAttribute('newVersion')
             PublicKeyToken = $identityNode.GetAttribute('publicKeyToken')
+            Culture = $identityNode.GetAttribute('culture')
         }
         if (-not $redirects.ContainsKey($name)) { $redirects[$name] = @() }
         $redirects[$name] += $redirect
@@ -81,24 +82,50 @@ $checkedReferences = 0
 $failures = @()
 foreach ($assembly in $assemblies) {
     foreach ($reference in $assembly.GetReferencedAssemblies()) {
+        $referenceToken = (($reference.GetPublicKeyToken() | ForEach-Object { $_.ToString('x2') }) -join '')
+        $referenceCulture = if ([string]::IsNullOrEmpty($reference.CultureName)) { 'neutral' } else { $reference.CultureName }
         if (-not $identities.ContainsKey($reference.Name)) {
             if ($badImages.ContainsKey($reference.Name)) {
                 $failures += "$($assembly.GetName().Name) requires $($reference.Name) $($reference.Version), " +
                     "but $($badImages[$reference.Name].Name) is not a valid managed assembly."
             }
+            else {
+                try {
+                    # Framework assemblies may resolve from the runtime/GAC. Missing application and package dependencies cannot.
+                    [void][Reflection.Assembly]::ReflectionOnlyLoad($reference.FullName)
+                }
+                catch {
+                    $frameworkResolved = $false
+                    if ($referenceToken -in @('b77a5c561934e089', 'b03f5f7f11d50a3a')) {
+                        try {
+                            # .NET Framework unifies newer framework references onto its 4.0.0.0 GAC facades.
+                            $frameworkName = "$($reference.Name), Version=4.0.0.0, Culture=$referenceCulture, PublicKeyToken=$referenceToken"
+                            [void][Reflection.Assembly]::ReflectionOnlyLoad($frameworkName)
+                            $frameworkResolved = $true
+                        }
+                        catch { }
+                    }
+                    if (-not $frameworkResolved) {
+                        $failures += "$($assembly.GetName().Name) requires $($reference.FullName), " +
+                            'which is neither bundled nor resolvable from the runtime/GAC.'
+                    }
+                }
+            }
             continue
         }
         $checkedReferences++
         $installed = $identities[$reference.Name]
-        $referenceToken = (($reference.GetPublicKeyToken() | ForEach-Object { $_.ToString('x2') }) -join '')
         $installedToken = (($installed.GetPublicKeyToken() | ForEach-Object { $_.ToString('x2') }) -join '')
-        $identityMatches = $referenceToken -ieq $installedToken
+        $installedCulture = if ([string]::IsNullOrEmpty($installed.CultureName)) { 'neutral' } else { $installed.CultureName }
+        $identityMatches = ($referenceToken -ieq $installedToken) -and ($referenceCulture -ieq $installedCulture)
         $resolved = ($reference.Version -eq $installed.Version) -and $identityMatches
         if ($redirects.ContainsKey($reference.Name)) {
             foreach ($redirect in $redirects[$reference.Name]) {
-                $redirectTokenMatches = (-not $redirect.PublicKeyToken) -or ($redirect.PublicKeyToken -ieq $referenceToken)
+                $redirectCulture = if ([string]::IsNullOrEmpty($redirect.Culture)) { 'neutral' } else { $redirect.Culture }
+                $redirectIdentityMatches = [string]::Equals($redirect.PublicKeyToken, $referenceToken, [StringComparison]::OrdinalIgnoreCase) -and
+                    $redirectCulture -ieq $referenceCulture
                 $rangeMatches = $reference.Version -ge $redirect.Minimum -and $reference.Version -le $redirect.Maximum
-                if ($redirectTokenMatches -and $rangeMatches) {
+                if ($redirectIdentityMatches -and $rangeMatches) {
                     # An applicable redirect changes the version, but never the strong-name identity.
                     $resolved = ($redirect.NewVersion -eq $installed.Version) -and $identityMatches
                     if ($resolved) { break }

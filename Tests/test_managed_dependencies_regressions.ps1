@@ -88,6 +88,31 @@ public sealed class UnsignedMemoryFixture { }
     $result = Invoke-Audit $badImage
     Assert-Result ($result.ExitCode -ne 0 -and $result.Text -match 'System.Memory') 'A required managed DLL with a bad image is rejected' $result.Text
 
+    $missingAssembly = Copy-AppFixture 'missing-assembly'
+    Remove-Item -LiteralPath (Join-Path $missingAssembly 'System.Text.Json.dll') -Force
+    $result = Invoke-Audit $missingAssembly
+    Assert-Result ($result.ExitCode -ne 0 -and $result.Text -match 'System.Text.Json') 'A missing required managed assembly is rejected' $result.Text
+
+    $missingToken = Copy-AppFixture 'missing-redirect-token'
+    $configPath = Join-Path $missingToken 'AstroHybrid.exe.config'
+    [xml]$config = Get-Content -LiteralPath $configPath
+    $namespaces = New-Object Xml.XmlNamespaceManager($config.NameTable)
+    $namespaces.AddNamespace('asm', 'urn:schemas-microsoft-com:asm.v1')
+    $identity = $config.SelectSingleNode("//asm:assemblyIdentity[@name='System.Memory']", $namespaces)
+    $identity.RemoveAttribute('publicKeyToken')
+    $config.Save($configPath)
+    $result = Invoke-Audit $missingToken
+    Assert-Result ($result.ExitCode -ne 0) 'A strong-name redirect without a public key token is rejected' $result.Text
+
+    $wrongCulture = Copy-AppFixture 'wrong-redirect-culture'
+    $configPath = Join-Path $wrongCulture 'AstroHybrid.exe.config'
+    [xml]$config = Get-Content -LiteralPath $configPath
+    $identity = $config.SelectSingleNode("//asm:assemblyIdentity[@name='System.Memory']", $namespaces)
+    $identity.SetAttribute('culture', 'en-US')
+    $config.Save($configPath)
+    $result = Invoke-Audit $wrongCulture
+    Assert-Result ($result.ExitCode -ne 0) 'A redirect with a mismatched culture is rejected' $result.Text
+
     $architecture = Copy-AppFixture 'architecture-scoped-redirect'
     $configPath = Join-Path $architecture 'AstroHybrid.exe.config'
     [xml]$config = Get-Content -LiteralPath $configPath
