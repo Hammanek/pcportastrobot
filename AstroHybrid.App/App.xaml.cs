@@ -53,7 +53,7 @@ namespace AstroHybrid.App
                 Shutdown(1);
             };
 
-            // AstroHybrid.exe --setup "<dump folder>": the setup wizard's work without a window (exit code 0 on
+            // AstroHybrid.exe --setup "<dump folder or .zar>": the setup wizard's work without a window (exit code 0 on
             // success; progress and errors in Logs\setup.log).
             if (e.Args.Length == 2 && e.Args[0] == "--setup")
             {

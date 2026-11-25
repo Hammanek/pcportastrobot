@@ -16,12 +16,12 @@ This is **not an emulator** — it is a native PC port:
 ## Download and Play
 
 1. Download the **AstroBotPC-AstroHybrid** zip from the [latest release](https://github.com/imnotsharingmyname/pcportastrobot/releases/latest) and extract it anywhere with ~1 GB free (your game dump stays where it is).
-2. Run **AstroHybrid.exe**. Select your Astro Bot dump folder (`eboot.bin`, `sce_module`, `sce_sys`) or ZArchive (`app0.zar`) and click **Install** — setup builds the Windows version locally in about two minutes without modifying your dump.
+2. Run **AstroHybrid.exe**. Select your Astro Bot dump folder or any standalone ZArchive (`.zar`, no rename required) and click **Check source**. The quick check validates the index and required startup files with byte progress before enabling **Install**; it does not decompress every optional game-data block. Setup extracts only the startup files it needs and builds the Windows version locally in about two minutes without modifying your source.
 3. On first launch, the app automatically detects your CPU, GPU, RAM, and display and applies the best settings for your PC. You can customize anything on the **Graphics**, **Controller**, and **Advanced** pages.
 4. Click **Play**.
 
 Other Astro Bot versions are accepted (only v01.019.000 has been fully tested).  
-Command line: `AstroHybrid.exe --setup "<dump folder>"` runs setup headless; `--remove-game` removes what setup built.
+Command line: `AstroHybrid.exe --setup "<dump folder or .zar>"` runs setup headless; `--remove-game` removes what setup built.
 
 ## What You Need for 60 FPS
 
@@ -66,7 +66,7 @@ Command line: `AstroHybrid.exe --setup "<dump folder>"` runs setup headless; `--
 - **Pre-Launch Shader Prep & Stability:** Smooth shader preparation before gameplay, VSync default, and stability guards.
 - **Windows & Native Linux Support:** Full Windows launcher (`AstroHybrid.exe`) with built-in auto-updater and **RecompLauncher** integration, plus native Linux support.
 - **Ultrawide Display Support:** Native 21:9 and 32:9 ultrawide render-space support.
-- **ZArchive (`app0.zar`) & Mods Support:** Supports both standard decrypted dumps and ZArchive (`app0.zar`) dumps, plus a dedicated `mods` folder.
+- **Standalone ZArchive & Mods Support:** Supports standard dump folders, `app0.zar` within them, and standalone `.zar` files with quick required-entry validation, plus a dedicated `mods` folder.
 - **Built-in Performance Overlay:** Shows both on-screen FPS and native game FPS (`F2`), plus `F11` / `Alt+Enter` fullscreen toggle.
 - **Laptop / Hybrid GPU Support:** Automatically detects discrete GPUs on Optimus / dual-GPU laptops and lets you pick your Vulkan adapter in Graphics settings.
 - **Full Controller Support:**
