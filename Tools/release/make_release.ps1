@@ -65,6 +65,18 @@ if (Test-Path $pl) {
     New-Item -ItemType Directory -Force (Join-Path $run 'PipelineLists') | Out-Null
     Copy-Item (Join-Path $pl '*.kyplst') (Join-Path $run 'PipelineLists') -ErrorAction SilentlyContinue
 }
+# Intel XeSS Super Resolution (ASTROHYBRID_XESS): libxess.dll from the XeSS SDK's bin folder
+# (https://github.com/intel/xess), redistributable unmodified under the Intel Simplified Software
+# License; put it and that licence (as xess.license.txt) in Build\RunHybrid. Optional: without it
+# the XeSS choice keeps the game's own upscaling.
+if (Test-Path (Join-Path $src 'libxess.dll')) {
+    if (-not (Test-Path (Join-Path $src 'xess.license.txt'))) { throw 'libxess.dll without xess.license.txt' }
+    Copy-Item (Join-Path $src 'libxess.dll') $run
+    Copy-Item (Join-Path $src 'xess.license.txt') $run
+    Copy-Item (Join-Path $src 'xess.license.txt') (Join-Path $stage 'licenses')
+} else {
+    Write-Warning 'Build\RunHybrid\libxess.dll missing: the download will have no XeSS runtime'
+}
 
 # System fonts: the game lays out its menu and prompt text in the console's system fonts. The Noto
 # substitutes AnyPS5 accepts (SIL Open Font License, Tools\release\get_fonts.ps1 downloads them) go in
@@ -94,6 +106,7 @@ No game files are included here.
 Tested version: 01.019.000. Other versions are accepted: faster lighting and real-time game speed turn
 themselves off when the version's code differs, everything else works the same way.
 NVIDIA: DLSS needs an RTX card, frame generation an RTX 40 or 50.
+Intel XeSS (Graphics page, Upscaling): Intel Arc (XMX) and most other GPUs (Iris Xe, GTX 10+, Radeon RX).
 Controllers: DualSense, DualShock 4, Xbox, Switch Pro and compatible pads, generic pads.
 In game: F2 performance overlay, F11 or Alt+Enter fullscreen.
 Logs: Logs\hybrid-run.*.log, Logs\setup.log.
