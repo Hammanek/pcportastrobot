@@ -128,11 +128,25 @@ namespace AstroHybrid.App.Services
             {
                 try
                 {
-                    var bytes = File.ReadAllBytes(dllPath);
-                    var text = Encoding.ASCII.GetString(bytes);
-                    var match = Regex.Match(text, @"u59-[A-Za-z0-9._-]{8,80}");
-                    if (match.Success)
-                        return match.Value;
+                    var buffer = new byte[64 * 1024];
+                    var overlap = string.Empty;
+                    using (var stream = File.OpenRead(dllPath))
+                    {
+                        int read;
+                        while ((read = stream.Read(buffer, 0, buffer.Length)) > 0)
+                        {
+                            var text = overlap + Encoding.ASCII.GetString(buffer, 0, read);
+                            var match = Regex.Match(text, @"u59-[A-Za-z0-9._-]{8,80}");
+                            if (match.Success &&
+                                (match.Index + match.Length < text.Length || stream.Position == stream.Length))
+                            {
+                                return match.Value;
+                            }
+                            // A match ending at the buffer boundary may be truncated; extend it with the next chunk.
+                            // u59- plus up to 80 suffix characters needs 83 overlap characters across chunks.
+                            overlap = text.Substring(Math.Max(0, text.Length - 83));
+                        }
+                    }
 
                     var info = FileVersionInfo.GetVersionInfo(dllPath);
                     if (!string.IsNullOrWhiteSpace(info.ProductVersion))
